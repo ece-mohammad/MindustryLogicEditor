@@ -12,9 +12,8 @@ from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
 
-class MindustryLogicEdit(QMainWindow):
-    """
-    Mindustry (game) logic editor
+class MindustryLogicEditor(QTextEdit):
+    """Mindustry (game) logic editor
 
     Features
         - highlight current line
@@ -30,18 +29,97 @@ class MindustryLogicEdit(QMainWindow):
         - tabs
         - split view
         - themes
-    """
+        """
+    def __init__(self, *args, **kwargs):
+        """Initialize mindustry logic editor instance"""
+        super(MindustryLogicEditor, self).__init__(*args, **kwargs)
+
+        # current file path
+        self.path: Optional[pathlib.Path] = None
+
+        # ----------------------------------------------------------------------
+        # ---------------------- configure GUI components ----------------------
+        # ----------------------------------------------------------------------
+
+        # accept rich text (for coloring)
+        self.setAcceptRichText(True)
+
+        # set editor font
+        self.font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        self.font.setPointSize(14)
+        self.setFont(self.font)
+
+    def create_new_file(self) -> None:
+        """create new file"""
+        self.clear()
+        self.path = None
+
+    def open_file(self) -> None:
+        """Open an existing file"""
+        new_file, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open File",
+            str(pathlib.Path.cwd()),
+            "mindustry logic (*.mlog); text files (*.txt), All files (*.*)",
+        )
+
+        if new_file:
+            try:
+                with open(new_file, "r") as file_handle:
+                    file_content = file_handle.read()
+            except Exception as exc:
+                self.show_error(str(exc))
+
+            else:
+                self.path = pathlib.Path(new_file)
+                self.setPlainText(file_content)
+
+    def save_file(self) -> None:
+        """Save current file"""
+        if self.path is None:
+            return self.save_file_as()
+        self._save_file(self.path)
+
+    def save_file_as(self) -> None:
+        """Save current file as"""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save File As",
+            str(pathlib.Path.cwd()),
+            "mindustry logic (*.mlog); text files (*.txt), All files (*.*)"
+        )
+
+        if file_path is not None and len(file_path) > 0:
+            self._save_file(pathlib.Path(file_path))
+
+    def _save_file(self, file_path: pathlib.Path) -> None:
+        """Private method to save files"""
+        current_text = self.toPlainText()
+
+        try:
+            with open(file_path, "w") as file_handle:
+                file_handle.write(current_text)
+
+        except Exception as exc:
+            self.show_error(str(exc))
+
+        else:
+            self.path = file_path
+
+
+class MainWindow(QMainWindow):
+    """Mindustry Logic Editor main window"""
 
     def __init__(self, *args, **kwargs):
         """Initialize Mindustry editor instance"""
 
-        super(MindustryLogicEdit, self).__init__(*args, **kwargs)
+        super(MainWindow, self).__init__(*args, **kwargs)
 
         # ----------------------------------------------------------------------
         # --------------------------- GUI components ---------------------------
         # ----------------------------------------------------------------------
 
-        self.editor: QTextEdit = QTextEdit()  # editor
+        self.editor: MindustryLogicEditor = MindustryLogicEditor()  # editor
         self.vert_layout: QVBoxLayout = QVBoxLayout()  # layout
         self.container: QWidget = QWidget()  # container
         self.status_bar: QStatusBar = QStatusBar()  # status bar
@@ -50,27 +128,12 @@ class MindustryLogicEdit(QMainWindow):
         self.file_toolbar = QToolBar("File")  # file toolbar
         self.edit_toolbar = QToolBar("Edit")  # edit toolbar
 
-        # current file path
-        self.path: Optional[pathlib.Path] = None
-
         # add editor to container
         self.vert_layout.addWidget(self.editor)
         self.container.setLayout(self.vert_layout)
 
         # set container as central widget
         self.setCentralWidget(self.container)
-
-        # ----------------------------------------------------------------------
-        # ---------------------- configure GUI components ----------------------
-        # ----------------------------------------------------------------------
-
-        # accept rich text (for coloring)
-        self.editor.setAcceptRichText(True)
-
-        # set editor font
-        self.font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        self.font.setPointSize(14)
-        self.editor.setFont(self.font)
 
         # # configure toolbars icon size
         self.file_toolbar.setIconSize(QSize(30, 30))
@@ -253,92 +316,39 @@ class MindustryLogicEdit(QMainWindow):
 
     def update_title(self) -> None:
         """Update editor window title"""
-        editor_title = "Mindustry Logic IDE"
-        if self.path is None:
+        editor_title: str = "Mindustry Logic IDE"
+        editor_path: pathlib.Path = self.editor.path
+
+        if editor_path is None:
             editor_title = f"new file* | {editor_title}"
         else:
-            editor_title = f"{str(self.path)} | {editor_title}"
+            editor_title = f"{str(editor_path)} | {editor_title}"
+
         self.setWindowTitle(editor_title)
 
     def create_new_file(self) -> None:
         """new editor file"""
-        self.editor.clear()
-        self.path = None
+        self.editor.create_new_file()
         self.update_title()
 
     def open_file(self) -> None:
         """Open an existing file"""
-        new_file, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open File",
-            str(pathlib.Path.cwd()),
-            "mindustry logic (*.mlog); text files (*.txt), All files (*.*)",
-        )
-
-        if new_file:
-            try:
-                with open(new_file, "r") as file_handle:
-                    file_content = file_handle.read()
-            except Exception as exc:
-                self.show_error(str(exc))
-
-            else:
-                self.path = pathlib.Path(new_file)
-                self.editor.setPlainText(file_content)
-                self.update_title()
+        self.editor.open_file()
+        self.update_title()
 
     def save_file(self) -> None:
         """Save current open file"""
-        if self.path is None:
-            return self.save_file_as()
-        self._save_file(self.path)
+        self.editor.save_file()
+        self.update_title()
 
     def save_file_as(self) -> None:
         """Save current file as another file"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save File As",
-            str(pathlib.Path.cwd()),
-            "mindustry logic (*.mlog); text files (*.txt), All files (*.*)"
-        )
-
-        if file_path is not None and len(file_path) > 0:
-            self._save_file(pathlib.Path(file_path))
-
-    def _save_file(self, file_path: pathlib.Path) -> None:
-        """Private method to save files"""
-        current_text = self.editor.toPlainText()
-
-        try:
-            with open(file_path, "w") as file_handle:
-                file_handle.write(current_text)
-
-        except Exception as exc:
-            self.show_error(str(exc))
-
-        else:
-            self.path = file_path
-            self.update_title()
-
-    def select_all_text(self):
-        """Select all text in editor"""
-        self.editor.selectAll()
-
-    def copy_selected_text(self):
-        """Copy selected text"""
-        ...
-
-    def cut_selected_text(self):
-        """Cut selected text"""
-        ...
-
-    def paste_text_from_clipboard(self) -> None:
-        """Paste text from clipboard into editor"""
-        ...
+        self.editor.save_file_as()
+        self.update_title()
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    win = MindustryLogicEdit()
+    win = MainWindow()
     win.show()
     sys.exit(app.exec_())
