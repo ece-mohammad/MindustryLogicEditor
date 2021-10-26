@@ -1,219 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import math
+
+
 import os
 import pathlib
 import sys
-from typing import List, Optional, Union
 
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
-
-class LineNumberArea(QWidget):
-    """Mindustry Logic Editor line number area"""
-
-    def __init__(self, editor, *args, **kwarg):
-        super(LineNumberArea, self).__init__(*args, **kwarg)
-        self.editor: Union[QTextEdit, MindustryLogicEditor] = editor
-
-    def sizeHint(self) -> QSize:
-        return QSize(self.editor.get_line_number_area_width(), 0)
-
-    def paintEvent(self, event: QPaintEvent) -> None:
-        self.editor.line_number_area_paint_event(event)
-
-
-class MindustryLogicEditor(QPlainTextEdit):
-    """Mindustry (game) logic editor
-
-    Features
-        - highlight current line
-        - current line numbering
-        - comment toggle
-        - code line numbering
-        - syntax coloring
-        - code completion
-        - code snippets
-        - linter (errors & warnings)
-        - auto-wrap
-        - dark mode
-        - tabs
-        - split view
-        - themes
-        """
-
-    def __init__(self, *args, **kwargs):
-        """Initialize mindustry logic editor instance"""
-        super(MindustryLogicEditor, self).__init__(*args, **kwargs)
-
-        # ----------------------------------------------------------------------
-        # ------------------------- Editor components --------------------------
-        # ----------------------------------------------------------------------
-
-        # line number area
-        self.line_number_area: LineNumberArea = LineNumberArea(editor=self, parent=self)
-
-        # current file path
-        self.path: Optional[pathlib.Path] = None
-
-        # ----------------------------------------------------------------------
-        # ---------------------- configure GUI components ----------------------
-        # ----------------------------------------------------------------------
-
-        # set editor font
-        self.font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        self.font.setPointSize(14)
-        self.setFont(self.font)
-
-        # ----------------------- connect editor signals -----------------------
-        self.blockCountChanged.connect(self.update_line_number_area_width)
-        self.updateRequest.connect(self.update_line_number_area)
-        self.cursorPositionChanged.connect(self.highlight_current_line)
-
-        # ------------------------------- start --------------------------------
-        self.update_line_number_area_width(0)
-        self.highlight_current_line()
-
-    def create_new_file(self) -> None:
-        """create new file"""
-        self.clear()
-        self.path = None
-
-    def open_file(self) -> None:
-        """Open an existing file"""
-        new_file, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open File",
-            str(pathlib.Path.cwd()),
-            "Mindustry Logic (*.mlog);;Text Files (*.txt);;All Files (*.*)",
-        )
-
-        if new_file:
-            try:
-                with open(new_file, "r") as file_handle:
-                    file_content = file_handle.read()
-            except Exception as exc:
-                self.show_error(str(exc))
-
-            else:
-                self.path = pathlib.Path(new_file)
-                self.setPlainText(file_content)
-
-    def save_file(self) -> None:
-        """Save current file"""
-        if self.path is None:
-            return self.save_file_as()
-        self._save_file(self.path)
-
-    def save_file_as(self) -> None:
-        """Save current file as"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save File As",
-            str(pathlib.Path.cwd()),
-            "Mindustry Logic (*.mlog);;Text Files (*.txt);;All Files (*.*)",
-        )
-
-        if file_path is not None and len(file_path) > 0:
-            self._save_file(pathlib.Path(file_path))
-
-    def _save_file(self, file_path: pathlib.Path) -> None:
-        """Private method to save files"""
-        current_text = self.toPlainText()
-
-        try:
-            with open(file_path, "w") as file_handle:
-                file_handle.write(current_text)
-
-        except Exception as exc:
-            self.show_error(str(exc))
-
-        else:
-            self.path = file_path
-
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        """resize editor"""
-        super(MindustryLogicEditor, self).resizeEvent(event)
-        rect: QRect = self.contentsRect()
-        self.line_number_area.setGeometry(
-            QRect(
-                rect.left(),
-                rect.top(),
-                self.get_line_number_area_width(),
-                rect.height()
-            )
-        )
-
-    def get_line_number_area_width(self) -> int:
-        """calculate the width of the LineNumberArea widget"""
-        block_count = max(1, self.blockCount())
-        width_in_digits = math.floor(math.log10(block_count)) + 1
-        width_in_pixels = 3 + self.fontMetrics().horizontalAdvance("9") * width_in_digits
-        return width_in_pixels
-
-    def line_number_area_paint_event(self, event: QPaintEvent) -> None:
-        """paint line number area"""
-        painter: QPainter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), Qt.lightGray)
-
-        text_block: QTextBlock = self.firstVisibleBlock()
-        block_number: int = text_block.blockNumber()
-        top: int = round(self.blockBoundingGeometry(text_block).translated(self.contentOffset()).top())
-        bottom: int = top + round(self.blockBoundingRect(text_block).height())
-
-        while text_block.isValid() and top <= event.rect().bottom():
-            if text_block.isVisible() and bottom >= event.rect().top():
-                number: str = str(block_number + 1)
-                painter.setPen(Qt.black)
-                painter.drawText(
-                    0,
-                    top,
-                    self.line_number_area.width(),
-                    self.fontMetrics().height(),
-                    Qt.AlignRight,
-                    number
-                )
-
-            text_block = text_block.next()
-            top = bottom
-            bottom = top + round(self.blockBoundingRect(text_block).height())
-            block_number += 1
-
-    @Slot(int)
-    def update_line_number_area_width(self, new_block_count: int):
-        """ update the width of the line number area"""
-        self.setViewportMargins(self.get_line_number_area_width(), 0, 0, 0)
-
-    @Slot(QRect, int)
-    def update_line_number_area(self, rect: QRect, dy: int) -> None:
-        """called when editors viewport has been scrolled"""
-        if dy:
-            self.line_number_area.scroll(0, dy)
-        else:
-            self.line_number_area.update(0, rect.y(), self.line_number_area.width(), rect.height())
-
-        if rect.contains(self.viewport().rect()):
-            self.update_line_number_area_width(0)
-
-    @Slot()
-    def highlight_current_line(self):
-        """Highlight current line"""
-        extra_selections: List[QTextEdit.ExtraSelection] = list()
-
-        if self.isReadOnly():
-            return
-
-        selection: QTextEdit.ExtraSelection = QTextEdit.ExtraSelection()
-        line_color = QColor(Qt.yellow).lighter(160)
-        selection.format.setBackground(line_color)
-        selection.format.setProperty(QTextFormat.FullWidthSelection, True)
-        selection.cursor = self.textCursor()
-        selection.cursor.clearSelection()
-        extra_selections.append(selection)
-
-        self.setExtraSelections(extra_selections)
+from editor import MindustryLogicEditor
+from highlighter import MindustryLogicSyntaxHighlighter
 
 
 class MainWindow(QMainWindow):
@@ -229,6 +27,7 @@ class MainWindow(QMainWindow):
         # ----------------------------------------------------------------------
 
         self.editor: MindustryLogicEditor = MindustryLogicEditor()  # editor
+        self.highlighter = MindustryLogicSyntaxHighlighter(self.editor.document())
         self.vert_layout: QVBoxLayout = QVBoxLayout()  # layout
         self.container: QWidget = QWidget()  # container
         self.status_bar: QStatusBar = QStatusBar()  # status bar

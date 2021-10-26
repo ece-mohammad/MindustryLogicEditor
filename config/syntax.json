@@ -1,0 +1,235 @@
+{
+  "builtin_functions": [
+    {
+      "get link": []
+    },
+    {
+      "set": []
+    },
+    {
+      "read": []
+    },
+    {
+      "write": []
+    },
+    {
+      "draw": []
+    },
+    {
+      "draw flush": []
+    },
+    {
+      "print": []
+    },
+    {
+      "print flush": []
+    },
+    {
+      "control": [
+        {
+          "function": [
+            "enabled",
+            "shoot",
+            "shootp",
+            "config",
+            "color"
+          ]
+        }
+      ]
+    },
+    {
+      "radar": [
+        {
+          "target": [
+            "any",
+            "enemy",
+            "ally",
+            "player",
+            "attacker",
+            "flying",
+            "boss",
+            "ground"
+          ]
+        },
+        {
+          "sort": [
+            "distance",
+            "health",
+            "shield",
+            "armor",
+            "maxHealth"
+          ]
+        }
+      ]
+    },
+    {
+      "sensor": []
+    },
+    {
+      "op": [
+        {
+          "operand": [
+            "add",
+            "sub",
+            "mul",
+            "div",
+            "idiv",
+            "mod",
+            "pow",
+            "equal",
+            "notEqual",
+            "land",
+            "lessThan",
+            "lessThanEq",
+            "greaterThan",
+            "greaterThanEq",
+            "strictEqual",
+            "shl",
+            "shr",
+            "or",
+            "and",
+            "xor",
+            "not",
+            "max",
+            "min",
+            "angle",
+            "len",
+            "noise",
+            "abs",
+            "log",
+            "log10",
+            "floor",
+            "ceil",
+            "sqrt",
+            "rand",
+            "sin",
+            "cos",
+            "tan",
+            "asin",
+            "acos",
+            "atan"
+          ]
+        }
+      ]
+    },
+    {
+      "end": []
+    },
+    {
+      "jump": [
+        {
+          "condition": [
+            "equal",
+            "notEqual",
+            "land",
+            "lessThan",
+            "lessThanEq",
+            "greaterThan",
+            "greaterThanEq",
+            "strictEqual",
+            "always"
+          ]
+        }
+      ]
+    },
+    {
+      "ubind": []
+    },
+    {
+      "ucontrol": [
+        {
+          "function": [
+            "idle",
+            "stop",
+            "move",
+            "approach",
+            "boost",
+            "pathfind",
+            "target",
+            "targetp",
+            "itemDrop",
+            "itemTake",
+            "payDrop",
+            "payTake",
+            "mine",
+            "flag",
+            "build",
+            "getBlock",
+            "within"
+          ]
+        }
+      ]
+    },
+    {
+      "uradar": [
+        {
+          "target": [
+            "any",
+            "enemy",
+            "ally",
+            "player",
+            "attacker",
+            "flying",
+            "boss",
+            "ground"
+          ]
+        },
+        {
+          "sort": [
+            "distance",
+            "health",
+            "shield",
+            "armor",
+            "maxHealth"
+          ]
+        }
+      ]
+    },
+    {
+      "ulocate": [
+        {
+          "what": [
+            "building",
+            "ore",
+            "spawn",
+            "damaged"
+          ]
+        },
+        {
+          "class": [
+            "core",
+            "storage",
+            "generator",
+            "turret",
+            "factory",
+            "repair",
+            "rally",
+            "battery",
+            "reactor"
+          ]
+        }
+      ]
+    },
+    {
+      "lookup": [
+        {
+          "thing": [
+            "item",
+            "block",
+            "unit",
+            "liquid"
+          ]
+        }
+      ]
+    }
+  ],
+  "special_variables": [
+    "@links",
+    "@time",
+    "@unit",
+    "@ipt",
+    "@this",
+    "@thisx",
+    "@thisy"
+  ]
+}
