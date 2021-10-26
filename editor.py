@@ -77,6 +77,9 @@ class MindustryLogicEditor(QPlainTextEdit):
         # line number area
         self.line_number_area: LineNumberArea = LineNumberArea(editor=self, parent=self)
 
+        # code line number area
+        self.code_line_number_area: CodeLineNumberArea = LineNumberArea(editor=self, parent=self)
+
         # current file path
         self.path: Optional[pathlib.Path] = None
 
@@ -209,19 +212,21 @@ class MindustryLogicEditor(QPlainTextEdit):
 
     def keyPressEvent(self, event: QKeyEvent):
         """
-        Replace tabs with 4 spaces
+        Replace tabs with 4 spaces at most (insert spaces till the next tab stop)
 
-        :param event:
-        :type event:
-        :return:
-        :rtype:
+        :param event: pressed key event
+        :type event: QKeyEvent
+        :return: None
+        :rtype: None
         """
         if event.key() == Qt.Key_Tab:
+            cursor_position = self.textCursor().positionInBlock()
+            tabs_to_insert = self.tab_width - (cursor_position % self.tab_width)
             event = QKeyEvent(
                 QEvent.KeyPress
                 , Qt.Key_Space
                 , Qt.KeyboardModifiers(event.nativeModifiers())
-                , (" " * self.tab_to_spaces)
+                , (" " * tabs_to_insert)
             )
         super(MindustryLogicEditor, self).keyPressEvent(event)
 
