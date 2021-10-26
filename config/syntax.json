@@ -1,7 +1,7 @@
 {
   "builtin_functions": [
     {
-      "get link": []
+      "getlink": []
     },
     {
       "set": []
@@ -16,13 +16,13 @@
       "draw": []
     },
     {
-      "draw flush": []
+      "drawflush": []
     },
     {
       "print": []
     },
     {
-      "print flush": []
+      "printflush": []
     },
     {
       "control": [
