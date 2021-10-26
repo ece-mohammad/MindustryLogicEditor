@@ -76,6 +76,7 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         # line number area
         self.line_number_area: LineNumberArea = LineNumberArea(editor=self, parent=self)
+        self.line_number_area.setFont(QFont("Consolas", 14, QFont.ExtraLight))
 
         # code line number area
         self.code_line_number_area: CodeLineNumberArea = LineNumberArea(editor=self, parent=self)
@@ -88,9 +89,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         # ----------------------------------------------------------------------
 
         # set editor font
-        self.font = QFont()
-        self.font.setPointSize(14)
-        self.font.setStyleHint(QFont.Monospace)
+        self.font = QFont("Consolas", 14, QFont.Normal)
         self.setFont(self.font)
 
         # set tab to 4 spaces
@@ -238,7 +237,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype:
         """
         line_count = max(1, self.blockCount())
-        width_in_digits = math.floor(math.log10(line_count)) + 1
+        width_in_digits = max(math.floor(math.log10(line_count)) + 2, 4)
         width_in_pixels = 3 + self.fontMetrics().horizontalAdvance("9") * width_in_digits
         return width_in_pixels
 
@@ -252,7 +251,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype: None
         """
         painter: QPainter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), Qt.lightGray)
+        painter.fillRect(event.rect(), QColor(200, 200, 200))   # light gray
 
         text_block: QTextBlock = self.firstVisibleBlock()
         block_number: int = text_block.blockNumber()
@@ -268,7 +267,7 @@ class MindustryLogicEditor(QPlainTextEdit):
                     top,
                     self.line_number_area.width(),
                     self.fontMetrics().height(),
-                    Qt.AlignRight,
+                    Qt.AlignLeft,
                     number
                 )
 
