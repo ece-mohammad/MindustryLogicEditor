@@ -2,13 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
-import math
-import pathlib
-import sys
 from typing import List, Optional, Union
 
 from PySide2.QtCore import *
-from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
 

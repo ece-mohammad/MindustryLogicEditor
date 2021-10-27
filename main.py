@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import json
+
+
 import os
 import pathlib
 import sys
-from typing import List
 
 from PySide2.QtCore import *
 from PySide2.QtGui import *
@@ -206,7 +206,6 @@ class MainWindow(QMainWindow):
         # ----------------------------------------------------------------------
         # show main window
         self.update_title()
-        self.show()
 
     def show_error(self, message: str) -> None:
         """Show error in a message box to user"""
@@ -251,5 +250,5 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = MainWindow()
-    win.show()
+    win.showMaximized()
     sys.exit(app.exec_())
