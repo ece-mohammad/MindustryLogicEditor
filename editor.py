@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
+import dataclasses
 import math
 import pathlib
 import sys
@@ -12,6 +13,7 @@ from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
 
+@dataclasses.dataclass()
 class LineNumberArea(QWidget):
     """Mindustry Logic Editor line number area"""
 
@@ -26,18 +28,12 @@ class LineNumberArea(QWidget):
         self.editor.line_number_area_paint_event(event)
 
 
-class CodeLineNumberArea(QWidget):
-    """Mindustry Logic Editor line number area"""
+@dataclasses.dataclass()
+class CodeLineNumber(QTextBlockUserData):
 
-    def __init__(self, editor, *args, **kwarg):
-        super(CodeLineNumberArea, self).__init__(*args, **kwarg)
-        self.editor: Union[QTextEdit, MindustryLogicEditor] = editor
-
-    def sizeHint(self) -> QSize:
-        return QSize(self.editor.line_number_area_width(), 0)
-
-    def paintEvent(self, event: QPaintEvent) -> None:
-        self.editor.line_number_area_paint_event(event)
+    def __init__(self, number: Optional[int] = None):
+        super(CodeLineNumber, self).__init__()
+        self.number: Optional[int] = number
 
 
 class MindustryLogicEditor(QPlainTextEdit):
@@ -70,6 +66,9 @@ class MindustryLogicEditor(QPlainTextEdit):
         """
         super(MindustryLogicEditor, self).__init__(*args, **kwargs)
 
+        # current open file path
+        self.path: Optional[pathlib.Path] = None
+
         # ----------------------------------------------------------------------
         # ------------------------- Editor components --------------------------
         # ----------------------------------------------------------------------
@@ -77,12 +76,6 @@ class MindustryLogicEditor(QPlainTextEdit):
         # line number area
         self.line_number_area: LineNumberArea = LineNumberArea(editor=self, parent=self)
         self.line_number_area.setFont(QFont("Consolas", 14, QFont.ExtraLight))
-
-        # code line number area
-        self.code_line_number_area: CodeLineNumberArea = LineNumberArea(editor=self, parent=self)
-
-        # current file path
-        self.path: Optional[pathlib.Path] = None
 
         # ----------------------------------------------------------------------
         # ---------------------- configure GUI components ----------------------
@@ -239,7 +232,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         line_count = max(1, self.blockCount())
         width_in_digits = max(math.floor(math.log10(line_count)) + 2, 4)
         width_in_pixels = 3 + self.fontMetrics().horizontalAdvance("9") * width_in_digits
-        return width_in_pixels
+        return width_in_pixels * 2
 
     def line_number_area_paint_event(self, event: QPaintEvent) -> None:
         """
@@ -250,9 +243,24 @@ class MindustryLogicEditor(QPlainTextEdit):
         :return: None
         :rtype: None
         """
+        # color background
         painter: QPainter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), QColor(200, 200, 200))   # light gray
 
+        code_line_number_area_offset: int = math.floor(self.line_number_area.width() / 2)
+
+        # paint line number area background
+        line_number_rect = event.rect()
+        line_number_rect.setX(0)
+        line_number_rect.setWidth(code_line_number_area_offset)
+        painter.fillRect(line_number_rect, QColor(200, 200, 200))  # light gray
+
+        # paint code line number area background
+        code_line_number_rect = event.rect()
+        code_line_number_rect.setX(code_line_number_area_offset)
+        code_line_number_rect.setWidth(code_line_number_area_offset)
+        painter.fillRect(code_line_number_rect, QColor(200, 200, 200).lighter(120))  # light gray
+
+        # write line number and code line number
         text_block: QTextBlock = self.firstVisibleBlock()
         block_number: int = text_block.blockNumber()
         top: int = round(self.blockBoundingGeometry(text_block).translated(self.contentOffset()).top())
@@ -260,6 +268,7 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         while text_block.isValid() and top <= event.rect().bottom():
             if text_block.isVisible() and bottom >= event.rect().top():
+                # line number
                 number: str = str(block_number + 1)
                 painter.setPen(Qt.black)
                 painter.drawText(
@@ -269,6 +278,18 @@ class MindustryLogicEditor(QPlainTextEdit):
                     self.fontMetrics().height(),
                     Qt.AlignLeft,
                     number
+                )
+
+                # code line number
+                block_data: CodeLineNumber = text_block.userData()
+                painter.setPen(Qt.darkCyan)
+                painter.drawText(
+                    code_line_number_area_offset,
+                    top,
+                    self.line_number_area.width(),
+                    self.fontMetrics().height(),
+                    Qt.AlignLeft,
+                    str(block_data.number) if block_data.number is not None else ""
                 )
 
             text_block = text_block.next()
@@ -286,6 +307,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         :return: None
         :rtype: None
         """
+        # update text editor's view port right margin
         right_margin = self.line_number_area_width()
         self.setViewportMargins(
             right_margin,
@@ -293,6 +315,18 @@ class MindustryLogicEditor(QPlainTextEdit):
             0,
             0
         )
+
+        # update text editor blocks' data (code line numbers)
+        text_block: QTextBlock = self.document().begin()
+        code_line_number: int = 0
+        while text_block.isValid():
+            text: str = text_block.text().strip()
+            if len(text) > 0 and not text.startswith("#"):
+                text_block.setUserData(CodeLineNumber(code_line_number))
+                code_line_number += 1
+            else:
+                text_block.setUserData(CodeLineNumber())
+            text_block = text_block.next()
 
     @Slot(QRect, int)
     def update_line_number_area(self, rect: QRect, dy: int) -> None:
@@ -309,7 +343,12 @@ class MindustryLogicEditor(QPlainTextEdit):
         if dy:
             self.line_number_area.scroll(0, dy)
         else:
-            self.line_number_area.update(0, rect.y(), self.line_number_area.width(), rect.height())
+            self.line_number_area.update(
+                0,
+                rect.y(),
+                self.line_number_area.width(),
+                rect.height()
+            )
 
         if rect.contains(self.viewport().rect()):
             self.update_line_number_area_width(0)
@@ -328,7 +367,7 @@ class MindustryLogicEditor(QPlainTextEdit):
             return
 
         selection: QTextEdit.ExtraSelection = QTextEdit.ExtraSelection()
-        line_color = QColor(255, 215, 0).lighter(180)   # light gold
+        line_color = QColor(255, 215, 0).lighter(180)  # light gold
         selection.format.setBackground(line_color)
         selection.format.setProperty(QTextFormat.FullWidthSelection, True)
         selection.cursor = self.textCursor()
