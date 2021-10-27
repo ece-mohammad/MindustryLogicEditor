@@ -25,13 +25,17 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         - comments: dark green, normal
     """
 
-    @dataclasses.dataclass()
     class HighlightingRule(object):
         """Highlighting rules for MindustryLogicSyntaxHighlighter class"""
-        pattern: QRegularExpression
-        format: QTextCharFormat
 
-    def __init__(self, text_document: QTextDocument, *args, **kwargs):
+        __slots__ = ["pattern", "format"]
+
+        def __init__(self, pattern: QRegularExpression, rule_format: QTextCharFormat):
+            """Initialize highlighting rule instance"""
+            self.pattern: QRegularExpression = pattern
+            self.format: QTextCharFormat = rule_format
+
+    def __init__(self, text_document: QTextDocument):
         super(MindustryLogicSyntaxHighlighter, self).__init__(text_document)
         self.text_document: QTextDocument = text_document
         self.syntax_file: pathlib.Path = pathlib.Path("config").joinpath("syntax.json")
@@ -54,7 +58,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
             self.highlighting_rules.append(
                 MindustryLogicSyntaxHighlighter.HighlightingRule(
                     pattern=QRegularExpression(pattern),
-                    format=function_format
+                    rule_format=function_format
                 )
             )
 
@@ -66,7 +70,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
             self.highlighting_rules.append(
                 MindustryLogicSyntaxHighlighter.HighlightingRule(
                     pattern=QRegularExpression(pattern),
-                    format=function_params_format
+                    rule_format=function_params_format
                 )
             )
 
@@ -76,7 +80,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         self.highlighting_rules.append(
             MindustryLogicSyntaxHighlighter.HighlightingRule(
                 pattern=QRegularExpression("[0-9]"),
-                format=digit_format
+                rule_format=digit_format
             )
         )
 
@@ -86,7 +90,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         self.highlighting_rules.append(
             MindustryLogicSyntaxHighlighter.HighlightingRule(
                 pattern=QRegularExpression("\"\\w*\"|\'\\w*\'"),
-                format=string_literal_format
+                rule_format=string_literal_format
             )
         )
 
@@ -97,14 +101,14 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
             self.highlighting_rules.append(
                 MindustryLogicSyntaxHighlighter.HighlightingRule(
                     pattern=QRegularExpression(pattern),
-                    format=special_variable_format
+                    rule_format=special_variable_format
                 )
             )
 
         self.highlighting_rules.append(
             MindustryLogicSyntaxHighlighter.HighlightingRule(
                 pattern=QRegularExpression("\\B@\\w+\\b"),
-                format=special_variable_format
+                rule_format=special_variable_format
             )
         )
 
@@ -114,7 +118,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         self.highlighting_rules.append(
             MindustryLogicSyntaxHighlighter.HighlightingRule(
                 pattern=QRegularExpression("#.*$"),
-                format=comment_format
+                rule_format=comment_format
             )
         )
 

@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 
-import dataclasses
 import math
 import pathlib
 import sys
@@ -13,7 +12,6 @@ from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
 
-@dataclasses.dataclass()
 class LineNumberArea(QWidget):
     """Mindustry Logic Editor line number area"""
 
@@ -28,12 +26,15 @@ class LineNumberArea(QWidget):
         self.editor.line_number_area_paint_event(event)
 
 
-@dataclasses.dataclass()
 class CodeLineNumber(QTextBlockUserData):
 
-    def __init__(self, number: Optional[int] = None):
+    def __init__(self, number: Optional[int] = None, is_code: bool = False):
         super(CodeLineNumber, self).__init__()
         self.number: Optional[int] = number
+        self.is_code: bool = is_code
+
+    def __repr__(self):
+        return f"{self.number=} {self.is_code=}"
 
 
 class MindustryLogicEditor(QPlainTextEdit):
@@ -340,7 +341,7 @@ class MindustryLogicEditor(QPlainTextEdit):
                     self.line_number_area.width(),
                     self.fontMetrics().height(),
                     Qt.AlignLeft,
-                    str(block_data.number) if block_data.number is not None else ""
+                    str(block_data.number) if (block_data.number >= 0 and block_data.is_code) else ""
                 )
 
             text_block = text_block.next()
@@ -378,16 +379,33 @@ class MindustryLogicEditor(QPlainTextEdit):
             0
         )
 
-        # update text editor blocks' data (code line numbers)
-        text_block: QTextBlock = self.document().begin()
-        code_line_number: int = 0
-        while text_block.isValid():
-            text: str = text_block.text().strip()
-            if len(text) > 0 and not text.startswith("#"):
-                text_block.setUserData(CodeLineNumber(code_line_number))
-                code_line_number += 1
+        # get first visible text block
+        text_block: QTextBlock = self.firstVisibleBlock()
+        block_bottom: int = self.blockBoundingGeometry(text_block).translated(self.contentOffset()).bottom()
+
+        # iterate over text blocks
+        while text_block.isValid() and block_bottom <= self.geometry().bottom():
+
+            prev_block: QTextBlock = text_block.previous()  # prev block
+            prev_block_data: CodeLineNumber = prev_block.userData()  # prev block data
+
+            current_block_text: str = text_block.text().strip()  # current block text
+            is_code: bool = len(current_block_text) > 0 and not current_block_text.startswith("#")
+            current_block_data = CodeLineNumber(is_code=is_code)  # current block data
+
+            if is_code:
+                if prev_block.isValid():
+                    current_block_data.number = prev_block_data.number + 1
+                else:
+                    current_block_data.number = 0
+
             else:
-                text_block.setUserData(CodeLineNumber())
+                if prev_block.isValid():
+                    current_block_data.number = prev_block_data.number
+                else:
+                    current_block_data.number = -1
+
+            text_block.setUserData(current_block_data)
             text_block = text_block.next()
 
     @Slot(QRect, int)
