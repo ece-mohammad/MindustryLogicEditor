@@ -69,6 +69,15 @@ class MindustryLogicEditor(QPlainTextEdit):
         # current open file path
         self.path: Optional[pathlib.Path] = None
 
+        # text completer
+        self._completer: Optional[QCompleter] = None
+
+        # add text completer action
+        completer_action: QAction = QAction(self)
+        completer_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_Space))
+        completer_action.triggered.connect(self.popup_completer)
+        self.addAction(completer_action)
+
         # ----------------------------------------------------------------------
         # ------------------------- Editor components --------------------------
         # ----------------------------------------------------------------------
@@ -82,11 +91,11 @@ class MindustryLogicEditor(QPlainTextEdit):
         # ----------------------------------------------------------------------
 
         # set editor font
-        self.font = QFont("Consolas", 14, QFont.Normal)
+        self.font: QFont = QFont("Consolas", 14, QFont.Normal)
         self.setFont(self.font)
 
         # set tab to 4 spaces
-        self.tab_width = 4
+        self.tab_width: int = 4
         self.setTabStopWidth(self.fontMetrics().horizontalAdvance(" ") * self.tab_width)
 
         # ----------------------- connect editor signals -----------------------
@@ -97,6 +106,28 @@ class MindustryLogicEditor(QPlainTextEdit):
         # ------------------------------- start --------------------------------
         self.update_line_number_area_width(0)
         self.highlight_current_line()
+
+    @property
+    def completer(self) -> QCompleter:
+        return self._completer
+
+    @completer.setter
+    def completer(self, completer: QCompleter) -> None:
+        # if completer is not None, disconnect
+        if self._completer is not None:
+            self._completer.disconnect(self)
+
+        # set new completer
+        self._completer = completer
+
+        if not self._completer:
+            return
+
+        # setup completer
+        self._completer.setWidget(self)
+        self._completer.setCompletionMode(QCompleter.PopupCompletion)
+        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._completer.activated.connect(self.insert_completion)
 
     def create_new_file(self) -> None:
         """
@@ -211,16 +242,36 @@ class MindustryLogicEditor(QPlainTextEdit):
         :return: None
         :rtype: None
         """
-        if event.key() == Qt.Key_Tab:
-            cursor_position = self.textCursor().positionInBlock()
-            tabs_to_insert = self.tab_width - (cursor_position % self.tab_width)
-            event = QKeyEvent(
-                QEvent.KeyPress
-                , Qt.Key_Space
-                , Qt.KeyboardModifiers(event.nativeModifiers())
-                , (" " * tabs_to_insert)
-            )
+
+        # ignore these keys (enter, tab, escape, backtab) when completer pop up is visible
+        if self.completer is not None and self.completer.popup().isVisible():
+            if event.key() in (Qt.Key_Enter, Qt.Key_Return, Qt.Key_Escape, Qt.Key_Tab, Qt.Key_Backtab):
+                event.ignore()
+                return
+        else:
+            if event.key() == Qt.Key_Tab:
+                cursor_position = self.textCursor().positionInBlock()
+                tabs_to_insert = self.tab_width - (cursor_position % self.tab_width)
+                event = QKeyEvent(
+                    QEvent.KeyPress
+                    , Qt.Key_Space
+                    , Qt.KeyboardModifiers(event.nativeModifiers())
+                    , (" " * tabs_to_insert)
+                )
+
         super(MindustryLogicEditor, self).keyPressEvent(event)
+
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        """
+
+        :param event:
+        :type event: QFocusEvent
+        :return: None
+        :rtype: None
+        """
+        if self.completer is not None:
+            self.completer.setWidget(self)
+        super(MindustryLogicEditor, self).focusInEvent(event)
 
     def line_number_area_width(self) -> int:
         """
@@ -296,6 +347,17 @@ class MindustryLogicEditor(QPlainTextEdit):
             top = bottom
             bottom = top + round(self.blockBoundingRect(text_block).height())
             block_number += 1
+
+    def text_under_cursor(self) -> str:
+        """
+        Get current text under cursor
+
+        :return: string under cursor
+        :rtype: string
+        """
+        text_cursor: QTextCursor = self.textCursor()
+        text_cursor.select(QTextCursor.WordUnderCursor)
+        return text_cursor.selectedText()
 
     @Slot(int)
     def update_line_number_area_width(self, new_block_count: int):
@@ -375,6 +437,59 @@ class MindustryLogicEditor(QPlainTextEdit):
         extra_selections.append(selection)
 
         self.setExtraSelections(extra_selections)
+
+    @Slot(str)
+    def insert_completion(self, string: str) -> None:
+        """
+
+        :param string:
+        :type string:
+        :return:
+        :rtype:
+        """
+        # check if completer is connected to the editor
+        if self.completer.widget() is not self:
+            return
+
+        text_cursor: QTextCursor = self.textCursor()
+        extra: int = len(string) - len(self.completer.completionPrefix())
+        text_cursor.movePosition(QTextCursor.Left)
+        text_cursor.movePosition(QTextCursor.EndOfWord)
+        text_cursor.insertText(string[extra:])
+        self.setTextCursor(text_cursor)
+
+    def popup_completer(self) -> None:
+        """
+        Pop up completer
+
+        :return: None
+        :rtype: None
+        """
+
+        if self.completer is None:
+            return
+
+        completion_prefix: str = self.text_under_cursor().strip()
+
+        if len(completion_prefix) < 2:
+            self.completer.popup().hide()
+            return
+
+        if completion_prefix != self.completer.completionPrefix():
+            self.completer.setCompletionPrefix(completion_prefix)
+            self.completer.popup().setCurrentIndex(
+                self.completer.completionModel().index(0, 0)
+            )
+
+        cursor_rect: QRect = self.cursorRect()
+        cursor_rect.setWidth(
+            self.completer.popup().sizeHintForColumn(0) +
+            self.completer.popup().verticalScrollBar().sizeHint().width()
+        )
+
+        self.completer.complete(cursor_rect)
+
+        print(f"{self.completer.currentCompletion()=}")
 
 
 if __name__ == "__main__":

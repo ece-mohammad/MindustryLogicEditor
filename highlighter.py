@@ -5,7 +5,7 @@ import dataclasses
 import json
 import pathlib
 import sys
-from typing import List
+from typing import Dict, List
 
 from PySide2.QtCore import *
 from PySide2.QtGui import *
@@ -38,8 +38,8 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         self.highlighting_rules: List[MindustryLogicSyntaxHighlighter.HighlightingRule] = list()
 
         # get syntax
-        self.syntax = self.parse_syntax_file(self.syntax_file)
-        syntax_regex = self.generate_regex_syntax(self.syntax)
+        self.syntax: Dict[str, ...] = self.parse_syntax_file(self.syntax_file)
+        syntax_regex: Dict[str, list[str]] = self.generate_regex_syntax(self.syntax)
 
         # ----------------------------------------------------------------------
         # ------------------------- highlighting rules -------------------------

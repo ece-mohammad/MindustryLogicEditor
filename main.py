@@ -5,6 +5,7 @@
 import os
 import pathlib
 import sys
+from typing import List
 
 from PySide2.QtCore import *
 from PySide2.QtGui import *
@@ -26,8 +27,20 @@ class MainWindow(QMainWindow):
         # --------------------------- GUI components ---------------------------
         # ----------------------------------------------------------------------
 
-        self.editor: MindustryLogicEditor = MindustryLogicEditor()  # editor
-        self.highlighter = MindustryLogicSyntaxHighlighter(self.editor.document())
+        # text editor
+        self.editor: MindustryLogicEditor = MindustryLogicEditor()
+
+        # syntax highlighter
+        self.highlighter: MindustryLogicSyntaxHighlighter = MindustryLogicSyntaxHighlighter(self.editor.document())
+
+        # text completer for suggestions
+        self.completer: QCompleter = QCompleter(self)
+        self.completer.setModel(self.get_model_from_file(pathlib.Path("config").joinpath("keywords.txt")))
+        self.completer.setModelSorting(QCompleter.CaseInsensitivelySortedModel)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.completer.setWrapAround(False)
+        self.editor.completer = self.completer
+
         self.vert_layout: QVBoxLayout = QVBoxLayout()  # layout
         self.container: QWidget = QWidget()  # container
         self.status_bar: QStatusBar = QStatusBar()  # status bar
@@ -247,6 +260,28 @@ class MainWindow(QMainWindow):
         """Save current file as another file"""
         self.editor.save_file_as()
         self.update_title()
+
+    def get_model_from_file(self, file_path: pathlib.Path) -> QAbstractItemModel:
+        """Get abstract item model from file"""
+
+        # set cursor to wait
+        QGuiApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        word_list: List[str] = list()
+
+        try:
+            with open(file_path, "r") as model_file:
+                words = model_file.readlines()
+
+        except Exception as exc:
+            print(f"{exc!r}")
+
+        else:
+            word_list = [w.strip() for w in words]
+
+        finally:
+            QGuiApplication.restoreOverrideCursor()
+
+        return QStringListModel(word_list, self.completer)
 
 
 if __name__ == "__main__":

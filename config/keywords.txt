@@ -1,19 +1,20 @@
-keywords 
-builtin_functions 
-get link 
+ getlink
+set 
 read 
 write 
 draw 
-draw flush 
+drawflush 
 print 
-print flush 
+printflush 
 control 
+function 
 enabled
 shoot
 shootp
 config
 color
 radar 
+target 
 any
 enemy
 ally
@@ -22,6 +23,7 @@ attacker
 flying
 boss
 ground
+sort 
 distance
 health
 shield
@@ -29,6 +31,7 @@ armor
 maxHealth
 sensor 
 op 
+operand 
 add
 sub
 mul
@@ -70,6 +73,7 @@ acos
 atan
 end 
 jump 
+condition 
 equal
 notEqual
 land
@@ -81,6 +85,7 @@ strictEqual
 always
 ubind 
 ucontrol 
+function 
 idle
 stop
 move
@@ -99,6 +104,7 @@ build
 getBlock
 within
 uradar 
+target 
 any
 enemy
 ally
@@ -107,16 +113,19 @@ attacker
 flying
 boss
 ground
+sort 
 distance
 health
 shield
 armor
 maxHealth
 ulocate 
+what 
 building
 ore
 spawn
 damaged
+class 
 core
 storage
 generator
@@ -127,11 +136,11 @@ rally
 battery
 reactor
 lookup 
+thing 
 item
 block
 unit
 liquid
-special_variables 
 links
 time
 unit
