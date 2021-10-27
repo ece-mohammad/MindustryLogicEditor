@@ -54,7 +54,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         function_format: QTextCharFormat = QTextCharFormat()  # magenta, bold
         function_format.setForeground(QBrush(QColor(200, 25, 130)))
         function_format.setFontWeight(QFont.DemiBold)
-        function_patterns: List[str] = syntax_regex.get("functions", list())
+        function_patterns: List[str] = syntax_regex.get("builtin_functions", list())
         for pattern in function_patterns:
             self.highlighting_rules.append(
                 MindustryLogicSyntaxHighlighter.HighlightingRule(
@@ -140,8 +140,8 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
             regex_patterns["special_variables"].append(f"\\B{pattern}\\b")
 
         # functions
-        for pattern in syntax.get("functions", list()):
-            regex_patterns["functions"].append(f"^\\s*?{pattern}\\b")
+        for pattern in syntax.get("builtin_functions", list()):
+            regex_patterns["builtin_functions"].append(f"^\\s*?{pattern}\\b")
 
         # params
         for pattern in syntax.get("params", list()):
