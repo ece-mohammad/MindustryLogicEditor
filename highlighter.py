@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import dataclasses
 import json
 import pathlib
 import sys
@@ -10,6 +9,8 @@ from typing import Dict, List
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
+
+from syntax_file_parser import SyntaxFileParser
 
 
 class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
@@ -42,7 +43,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         self.highlighting_rules: List[MindustryLogicSyntaxHighlighter.HighlightingRule] = list()
 
         # get syntax
-        self.syntax: Dict[str, ...] = self.parse_syntax_file(self.syntax_file)
+        self.syntax: Dict[str, ...] = SyntaxFileParser.parse_syntax_file(self.syntax_file)
         syntax_regex: Dict[str, list[str]] = self.generate_regex_syntax(self.syntax)
 
         # ----------------------------------------------------------------------
@@ -121,75 +122,6 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
                 rule_format=comment_format
             )
         )
-
-    @staticmethod
-    def parse_syntax_file(file_path: pathlib.Path) -> dict:
-        """
-        read syntax file and return a dictionary of keywords, containing "special_variables", "functions" and "params"
-
-        :param file_path: path to syntax file
-        :type file_path: pathlib.Path
-        :return: dictionary ith parsed syntax
-        :rtype: dict
-        """
-
-        syntax = {
-            "special_variables": [],
-            "functions":         [],
-            "params":            []
-        }
-
-        with open(file_path, "r") as sfile:
-            raw_syntax = json.load(sfile)
-
-        # keywords(dict) -> builtin_functions(list of dicts) -> functions(dict)
-        # keywords(dict) -> special_variables(list of strings)
-        # "uradar": [
-        #   {
-        #     "target": [
-        #       "any",
-        #       "enemy",
-        #       "ally",
-        #       "player",
-        #       "attacker",
-        #       "flying",
-        #       "boss",
-        #       "ground"
-        #     ]
-        #   },
-        #   {
-        #     "sort": [
-        #       "distance",
-        #       "health",
-        #       "shield",
-        #       "armor",
-        #       "maxHealth"
-        #     ]
-        #   }
-        # ]
-
-        # for fn in bfi:
-        #     for fname, params in fn.items():
-        #         print(f"Function name: {fname}")
-        #         for p in params:
-        #             for pn, v in p.items():
-        #                 print(f"\tParam name: {pn}, values; {v}")
-
-        builtin_functions = raw_syntax.get("builtin_functions")
-
-        for function in builtin_functions:
-
-            for function_name, function_params in function.items():
-                syntax["functions"].append(function_name)
-
-                for param in function_params:
-                    for param_values in param.values():
-                        syntax["params"].extend(param_values)
-
-        # add special variables
-        syntax["special_variables"].extend(raw_syntax.get("special_variables"))
-
-        return syntax
 
     @staticmethod
     def generate_regex_syntax(syntax: dict) -> dict:

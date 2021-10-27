@@ -11,6 +11,10 @@ from PySide2.QtCore import *
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 
+from completer import MindustryLogicCompleter
+from highlighter import MindustryLogicSyntaxHighlighter
+from syntax_file_parser import SyntaxFileParser
+
 
 class LineNumberArea(QWidget):
     """Mindustry Logic Editor line number area"""
@@ -70,14 +74,22 @@ class MindustryLogicEditor(QPlainTextEdit):
         # current open file path
         self.path: Optional[pathlib.Path] = None
 
-        # text completer
-        self._completer: Optional[QCompleter] = None
+        # text highlighter
+        self.highlighter: MindustryLogicSyntaxHighlighter = MindustryLogicSyntaxHighlighter(self.document())
+
+        # text completer setup
+        keywords = SyntaxFileParser("config/syntax.json").get_keywords()
+        self.completer: Optional[MindustryLogicCompleter] = MindustryLogicCompleter(keywords)
+        self.completer.setWidget(self)
+        self.completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.completer.activated.connect(self.insert_completion)
 
         # add text completer action
-        completer_action: QAction = QAction(self)
-        completer_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_Space))
-        completer_action.triggered.connect(self.popup_completer)
-        self.addAction(completer_action)
+        # completer_action: QAction = QAction(self)
+        # completer_action.setShortcut(QKeySequence(Qt.CTRL + Qt.Key_Space))
+        # completer_action.triggered.connect(self.popup_completer)
+        # self.addAction(completer_action)
 
         # ----------------------------------------------------------------------
         # ------------------------- Editor components --------------------------
@@ -107,28 +119,6 @@ class MindustryLogicEditor(QPlainTextEdit):
         # ------------------------------- start --------------------------------
         self.update_line_number_area_width(0)
         self.highlight_current_line()
-
-    @property
-    def completer(self) -> QCompleter:
-        return self._completer
-
-    @completer.setter
-    def completer(self, completer: QCompleter) -> None:
-        # if completer is not None, disconnect
-        if self._completer is not None:
-            self._completer.disconnect(self)
-
-        # set new completer
-        self._completer = completer
-
-        if not self._completer:
-            return
-
-        # setup completer
-        self._completer.setWidget(self)
-        self._completer.setCompletionMode(QCompleter.PopupCompletion)
-        self._completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._completer.activated.connect(self.insert_completion)
 
     def create_new_file(self) -> None:
         """
@@ -236,7 +226,15 @@ class MindustryLogicEditor(QPlainTextEdit):
 
     def keyPressEvent(self, event: QKeyEvent):
         """
-        Replace tabs with 4 spaces at most (insert spaces till the next tab stop)
+        Handle key press events within editor
+        1. replace tabs with at most 4 spaces till the nearest tab stop
+        2. pop up auto complete suggestions when CTRL+SPACE are pressed
+        3. comment current code line when CTRL+/ are pressed
+        4. remove current code line when CTRL+D are pressed
+        5. duplicate current code line down when ALT+CTRL+DOWN_KEY are pressed
+        6. duplicate current code line up when ALT+CTRL+UP_KEY are pressed
+        7. move current code line up when CTRL+UP_KEY are pressed
+        8. move current code line down when CTRL+DOWN_KEY are pressed
 
         :param event: pressed key event
         :type event: QKeyEvent
@@ -244,23 +242,91 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype: None
         """
 
-        # ignore these keys (enter, tab, escape, backtab) when completer pop up is visible
-        if self.completer is not None and self.completer.popup().isVisible():
-            if event.key() in (Qt.Key_Enter, Qt.Key_Return, Qt.Key_Escape, Qt.Key_Tab, Qt.Key_Backtab):
-                event.ignore()
-                return
-        else:
-            if event.key() == Qt.Key_Tab:
-                cursor_position = self.textCursor().positionInBlock()
-                tabs_to_insert = self.tab_width - (cursor_position % self.tab_width)
-                event = QKeyEvent(
-                    QEvent.KeyPress
-                    , Qt.Key_Space
-                    , Qt.KeyboardModifiers(event.nativeModifiers())
-                    , (" " * tabs_to_insert)
-                )
+        def test_modifier(flag: Qt.KeyboardModifier, value: Qt.KeyboardModifiers):
+            return flag & value == flag
+
+        event_modifiers = event.modifiers()
+        ctrl_modifier = test_modifier(Qt.ControlModifier, event_modifiers)
+        shift_modifier = test_modifier(Qt.ShiftModifier, event_modifiers)
+        alt_modifier = test_modifier(Qt.AltModifier, event_modifiers)
+        no_modifiers = event_modifiers == Qt.NoModifier
+        event_key = event.key()
+        event_text = event.text()
+
+        # replace tabs
+        if no_modifiers and event_key == Qt.Key_Tab:
+            return self.replace_tabs_event(event)
+
+        # pop up auto-complete suggestions
+        if ctrl_modifier and event_key == Qt.Key_Space and self.completer is not None:
+            return self.popup_completer_event(event)
 
         super(MindustryLogicEditor, self).keyPressEvent(event)
+
+    def replace_tabs_event(self, event: QKeyEvent):
+        """
+        Replace tabs with spaces
+
+        :param event: Tab key pressed event
+        :type event: QKeyEvent
+        :return: None
+        :rtype: None
+        """
+
+        # override event key (tab) with a new key event (space) with at most 4 spaces as text
+        cursor_position = self.textCursor().positionInBlock()
+        tabs_to_insert = self.tab_width - (cursor_position % self.tab_width)
+        event = QKeyEvent(
+            QEvent.KeyPress,
+            Qt.Key_Space,
+            Qt.KeyboardModifiers(),
+            (" " * tabs_to_insert),
+            False,
+            1
+        )
+
+        super(MindustryLogicEditor, self).keyPressEvent(event)
+
+    def popup_completer_event(self, event: QKeyEvent) -> None:
+        """
+        Pop up suggestions pop up
+
+        :param event: pressed key event
+        :type event: QKeyEvent
+        :return: None
+        :rtype: None
+        """
+        if self.completer is None:
+            return super(MindustryLogicEditor, self).keyPressEvent(event)
+
+        # ignore these keys (enter, tab, escape, backtab) when completer pop up is visible
+        if self.completer.popup().isVisible() and event.key() in (
+            Qt.Key_Tab, Qt.Key_Escape, Qt.Key_Enter, Qt.Key_Backtab):
+            return event.ignore()
+
+        completer_prefix: str = self.text_under_cursor()
+
+        if len(completer_prefix) == 0:
+            return
+
+        if completer_prefix != self.completer.completionPrefix():
+            self.completer.setCompletionPrefix(completer_prefix)
+            self.completer.popup().setCurrentIndex(
+                self.completer.completionModel().index(0, 0)
+            )
+
+        cursor_rect: QRect = self.cursorRect()
+        popup = self.completer.popup()
+
+        cursor_rect.setWidth(
+            popup.sizeHintForColumn(0) + popup.verticalScrollBar().sizeHint().width()
+        )
+
+        cursor_rect.moveLeft(
+            popup.sizeHintForColumn(0) + popup.verticalScrollBar().sizeHint().width()
+        )
+
+        self.completer.complete(cursor_rect)
 
     def focusInEvent(self, event: QFocusEvent) -> None:
         """
@@ -466,48 +532,16 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype:
         """
         # check if completer is connected to the editor
-        if self.completer.widget() is not self:
+
+        if string == self.completer.completionPrefix():
             return
 
         text_cursor: QTextCursor = self.textCursor()
         extra: int = len(string) - len(self.completer.completionPrefix())
         text_cursor.movePosition(QTextCursor.Left)
         text_cursor.movePosition(QTextCursor.EndOfWord)
-        text_cursor.insertText(string[extra:])
+        text_cursor.insertText(string[0-extra:])
         self.setTextCursor(text_cursor)
-
-    def popup_completer(self) -> None:
-        """
-        Pop up completer
-
-        :return: None
-        :rtype: None
-        """
-
-        if self.completer is None:
-            return
-
-        completion_prefix: str = self.text_under_cursor().strip()
-
-        if len(completion_prefix) < 2:
-            self.completer.popup().hide()
-            return
-
-        if completion_prefix != self.completer.completionPrefix():
-            self.completer.setCompletionPrefix(completion_prefix)
-            self.completer.popup().setCurrentIndex(
-                self.completer.completionModel().index(0, 0)
-            )
-
-        cursor_rect: QRect = self.cursorRect()
-        cursor_rect.setWidth(
-            self.completer.popup().sizeHintForColumn(0) +
-            self.completer.popup().verticalScrollBar().sizeHint().width()
-        )
-
-        self.completer.complete(cursor_rect)
-
-        print(f"{self.completer.currentCompletion()=}")
 
 
 if __name__ == "__main__":
