@@ -291,11 +291,12 @@ class MindustryLogicEditor(QPlainTextEdit):
         """
 
         completer_popup = self.completer.popup()
+        event_text: str = event.text()
 
         # get prefix under the cursor
         completion_prefix: str = self.text_under_cursor()
 
-        if len(completion_prefix) == 0:
+        if len(completion_prefix) == 0 or len(event_text) == 0:
             return completer_popup.hide()
 
         if completion_prefix == self.completer.currentCompletion():
