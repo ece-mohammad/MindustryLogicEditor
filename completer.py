@@ -16,6 +16,23 @@ class MindustryLogicCompleter(QCompleter):
         self.model.setStringList(word_list)
         self.setModel(self.model)
 
+    def update_model(self, word_list: List[str]) -> None:
+        """
+        Update completer model
+
+        :param word_list: new list of words
+        :type word_list: List[str]
+        :return: None
+        :rtype: None
+        """
+        if len(word_list) == 0:
+            return
+
+        model = QStringListModel()
+        model.setStringList(word_list)
+        self.setModel(model)
+        self.model = model
+
 
 if __name__ == '__main__':
     pass
