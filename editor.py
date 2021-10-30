@@ -437,6 +437,24 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.keywords = keywords
         self.completer.update_model(keywords)
 
+    def insertFromMimeData(self, source: QMimeData):
+        """
+        
+        :param source: 
+        :type source: 
+        :return: 
+        :rtype: 
+        """
+
+        super(MindustryLogicEditor, self).insertFromMimeData(source)
+
+        if source.hasText():
+            source_text = source.text().splitlines()
+            for line in source_text:
+                for word in line.split():
+                    if word.isalnum():
+                        self.add_word_to_keyword(word)
+
     @Slot(int)
     def update_line_number_area_width(self, new_block_count: int):
         """
