@@ -80,7 +80,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         digit_format.setForeground(QBrush(QColor(30, 80, 210)))
         self.highlighting_rules.append(
             MindustryLogicSyntaxHighlighter.HighlightingRule(
-                pattern=QRegularExpression("[0-9]"),
+                pattern=QRegularExpression("\\b[-+]?[0-9]*\\.?[0-9]+([eE][+-]?[0-9]+)?\\b"),
                 rule_format=digit_format
             )
         )
