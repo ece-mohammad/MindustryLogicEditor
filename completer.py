@@ -12,8 +12,7 @@ class MindustryLogicCompleter(QCompleter):
 
     def __init__(self, word_list: List[str], *args, **kwargs):
         super(MindustryLogicCompleter, self).__init__(*args, **kwargs)
-        self.model: QStringListModel = QStringListModel()
-        self.model.setStringList(word_list)
+        self.model: QStringListModel = QStringListModel(word_list)
         self.setModel(self.model)
 
     def update_model(self, word_list: List[str]) -> None:
@@ -28,10 +27,8 @@ class MindustryLogicCompleter(QCompleter):
         if len(word_list) == 0:
             return
 
-        model = QStringListModel()
-        model.setStringList(word_list)
-        self.setModel(model)
-        self.model = model
+        self.model.setStringList(word_list)
+        self.setModel(self.model)
 
 
 if __name__ == '__main__':

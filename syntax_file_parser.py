@@ -49,7 +49,8 @@ class SyntaxFileParser(object):
         :return: list of all syntax kywords
         :rtype: List[str]
         """
-        return [kw for cat in self.syntax.values() for kw in cat]
+        keywords = [kw for cat in self.syntax.values() for kw in cat]
+        return list(set(keywords))  # to remove possible duplicates
 
 
 if __name__ == '__main__':

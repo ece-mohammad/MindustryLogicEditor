@@ -253,6 +253,12 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         super(MindustryLogicEditor, self).keyPressEvent(event)
 
+        if event_key in (Qt.Key_Space, Qt.Key_Tab, Qt.Key_Return):
+            text_cursor: QTextCursor = self.textCursor()
+            text_cursor.movePosition(QTextCursor.PreviousWord, QTextCursor.KeepAnchor)
+            text_cursor.select(QTextCursor.WordUnderCursor)
+            self.add_word_to_keyword(text_cursor.selectedText())
+
         # auto complete suggestions
         self.auto_complete_suggestions(event)
 
@@ -411,6 +417,25 @@ class MindustryLogicEditor(QPlainTextEdit):
         text_cursor: QTextCursor = self.textCursor()
         text_cursor.select(QTextCursor.WordUnderCursor)
         return text_cursor.selectedText()
+
+    def add_word_to_keyword(self, word: str) -> None:
+        """
+        Add a word to word list
+
+        :param word: a word (at least 4 characters in length)
+        :type word: str
+        :return: None
+        :rtype: None
+        """
+
+        word = word.strip()
+        if len(word) < 4:
+            return
+        keywords = set(self.keywords)
+        keywords.add(word)
+        keywords = list(keywords)
+        self.keywords = keywords
+        self.completer.update_model(keywords)
 
     @Slot(int)
     def update_line_number_area_width(self, new_block_count: int):
