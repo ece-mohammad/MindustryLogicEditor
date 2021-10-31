@@ -93,6 +93,12 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.comment_toggle_action.triggered.connect(self.comment_toggle)
         self.addAction(self.comment_toggle_action)
 
+        # remove current line action
+        self.remove_lines_action: QAction = QAction(self)
+        self.remove_lines_action.setShortcut(QKeySequence(Qt.Key_D | Qt.CTRL))
+        self.remove_lines_action.triggered.connect(self.remove_lines)
+        self.addAction(self.remove_lines_action)
+
         # ----------------------------------------------------------------------
         # ------------------------- Editor components --------------------------
         # ----------------------------------------------------------------------
@@ -433,6 +439,7 @@ class MindustryLogicEditor(QPlainTextEdit):
             current_block = current_block.next()
 
         # loop over blocks to add (or remove) comments
+        text_cursor.beginEditBlock()
         current_block: QTextBlock = QTextBlock(start_block)
         while current_block.isValid() and current_block.blockNumber() <= end_block.blockNumber():
             if is_comment_block:
@@ -441,6 +448,51 @@ class MindustryLogicEditor(QPlainTextEdit):
                 self.comment_line(text_cursor)
             current_block = current_block.next()
             text_cursor.movePosition(QTextCursor.NextBlock, QTextCursor.KeepAnchor)
+        text_cursor.endEditBlock()
+
+    def remove_lines(self) -> None:
+        """
+        Remove current line where the cursor is, or all selected lines
+
+        :return:
+        :rtype:
+        """
+
+        text_cursor: QTextCursor = self.textCursor()
+        if text_cursor.hasSelection():
+            self.remove_selected_lines(text_cursor)
+        else:
+            self.remove_current_line(text_cursor)
+
+    def remove_current_line(self, text_cursor: QTextCursor) -> None:
+        """
+        Remove current line
+
+        :param text_cursor:
+        :type text_cursor:
+        :return:
+        :rtype:
+        """
+        text_cursor: QTextCursor = self.textCursor()
+        has_text: bool = len(text_cursor.block().text().strip()) > 0
+        if has_text:
+            text_cursor.select(QTextCursor.BlockUnderCursor)
+            text_cursor.removeSelectedText()
+        else:
+            text_cursor.deleteChar()
+
+    def remove_selected_lines(self, text_cursor: QTextCursor):
+        """
+        Remove selected lines
+
+        :param text_cursor:
+        :type text_cursor:
+        :return:
+        :rtype:
+        """
+
+        self.enlarge_selection(text_cursor)
+        text_cursor.removeSelectedText()
 
     def focusInEvent(self, event: QFocusEvent) -> None:
         """
@@ -720,6 +772,28 @@ class MindustryLogicEditor(QPlainTextEdit):
             offset: int = 1
         text_cursor.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor, offset)
         text_cursor.removeSelectedText()
+
+    @staticmethod
+    def enlarge_selection(text_cursor: QTextCursor) -> None:
+        """
+        Enlarge current selection from the start of the first line
+        to the end of the last line
+
+        :param text_cursor: current text cursor
+        :type text_cursor: QTextCursor
+        :return: text cursor with the new selection
+        :rtype: QTextCursor
+        """
+        selection_start: int = text_cursor.selectionStart()
+        selection_end: int = text_cursor.selectionEnd()
+
+        # move to the start of the first selected line
+        text_cursor.setPosition(selection_start, QTextCursor.MoveAnchor)
+        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+
+        # move to the end of the last selected line
+        text_cursor.setPosition(selection_end, QTextCursor.KeepAnchor)
+        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
 
 
 if __name__ == "__main__":
