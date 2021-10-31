@@ -87,6 +87,12 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.completer.setCaseSensitivity(Qt.CaseSensitive)
         self.completer.activated.connect(self.insert_completion)
 
+        # add comment toggle action
+        self.comment_toggle_action: QAction = QAction(self)
+        self.comment_toggle_action.setShortcut(QKeySequence(Qt.Key_Slash | Qt.CTRL))
+        self.comment_toggle_action.triggered.connect(self.comment_toggle)
+        self.addAction(self.comment_toggle_action)
+
         # ----------------------------------------------------------------------
         # ------------------------- Editor components --------------------------
         # ----------------------------------------------------------------------
@@ -248,8 +254,14 @@ class MindustryLogicEditor(QPlainTextEdit):
             return event.ignore()  # let the completer do default behavior
 
         # replace tabs ith spaces
-        if no_modifiers and event_key == Qt.Key_Tab:
-            event = self.replace_tab_event(event)
+        if no_modifiers:
+            if event_key == Qt.Key_Tab:
+                event = self.replace_tab_event(event)
+
+        # # comment toggle
+        # elif editor_utils.test_modifiers(event_modifiers, Qt.ControlModifier):
+        #     if event_key == Qt.Key_Slash:
+        #         self.comment_toggle(event)
 
         super(MindustryLogicEditor, self).keyPressEvent(event)
 
@@ -257,7 +269,9 @@ class MindustryLogicEditor(QPlainTextEdit):
             text_cursor: QTextCursor = self.textCursor()
             text_cursor.movePosition(QTextCursor.PreviousWord, QTextCursor.KeepAnchor)
             text_cursor.select(QTextCursor.WordUnderCursor)
-            self.add_word_to_keyword(text_cursor.selectedText())
+            text: str = text_cursor.selectedText()
+            if text.isalnum():
+                self.add_word_to_keyword(text)
 
         # auto complete suggestions
         self.auto_complete_suggestions(event)
@@ -286,7 +300,7 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         return event
 
-    def auto_complete_suggestions(self, event: QKeyEvent):
+    def auto_complete_suggestions(self, event: QKeyEvent) -> None:
         """
         Show and update auto complete suggestions
 
@@ -319,6 +333,114 @@ class MindustryLogicEditor(QPlainTextEdit):
         cursor_rect.setX(cursor_rect.x() + self.line_number_area_width())
         cursor_rect.setWidth(rect_offset + self.line_number_area_width())
         self.completer.complete(cursor_rect)
+
+    def comment_toggle(self) -> None:
+        """
+        Toggle comment on current line or selected lines
+
+        :param event: key event that triggered comment toggle
+        :type event: QKeyEvent
+        :return: None
+        :rtype: None
+        """
+
+        def is_single_line_selection(cursor: QTextCursor) -> bool:
+            """
+            Check if current selection is in a single line or spans multiple lines
+
+            :param cursor: current text cursor
+            :type cursor: QTextCursor
+            :return: True if current selection is in a single line,
+                False if the selection spans multiple lines
+            :rtype: bool
+            """
+            # get current selection start & end positions
+            selection_start: int = cursor.selectionStart()
+            selection_end: int = cursor.selectionEnd()
+
+            # move to selection start
+            cursor.setPosition(selection_start, QTextCursor.MoveAnchor)
+            start_block: int = cursor.blockNumber()
+
+            # move to selection end
+            cursor.setPosition(selection_end, QTextCursor.KeepAnchor)
+            end_block: int = cursor.blockNumber()
+
+            return start_block == end_block
+
+        # text cursor
+        text_cursor: QTextCursor = self.textCursor()
+        is_block_comment: bool = False
+
+        # check if there is a
+        if text_cursor.hasSelection() and not is_single_line_selection(text_cursor):
+            self.toggle_block_comment(text_cursor)
+        else:
+            self.toggle_line_comment(text_cursor)
+
+        self.update_line_number_area_width(0)
+
+    def toggle_line_comment(self, text_cursor: QTextCursor) -> None:
+        """
+        Toggle comment for the line where text cursor currently is. If the current
+        line is a comment, comment will be removed. Otherise, a comment will be
+        inserted at the start of the line
+
+        :param text_cursor: text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+        current_line: QTextBlock = text_cursor.block()
+        line_text: str = current_line.text()
+
+        if line_text.startswith("#"):
+            self.remove_comment(text_cursor)
+        else:
+            self.comment_line(text_cursor)
+
+    def toggle_block_comment(self, text_cursor: QTextCursor) -> None:
+        """
+        Toggle comment on current selected lines. If all lines are already commented,
+        the comment is removed from all lines. Otherwise, a comment will be inserted
+        at the start of each line
+
+        :param text_cursor: current text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+
+        # current selection start & end positions
+        select_start: int = text_cursor.selectionStart()
+        select_end: int = text_cursor.selectionEnd()
+
+        # move to the end of last selected line
+        text_cursor.setPosition(select_end, QTextCursor.MoveAnchor)
+        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.MoveAnchor)
+        end_block: QTextBlock = text_cursor.block()
+
+        # move to the start of first selected line
+        text_cursor.setPosition(select_start, QTextCursor.KeepAnchor)
+        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.KeepAnchor)
+        start_block: QTextBlock = text_cursor.block()
+
+        # check all lines are commented (selection is a comment block)
+        is_comment_block: bool = True
+        current_block: QTextBlock = QTextBlock(start_block)
+        while is_comment_block is True and current_block.isValid() and current_block.blockNumber() <= end_block.blockNumber():
+            is_comment_block = is_comment_block and current_block.text().startswith("#")
+            current_block = current_block.next()
+
+        # loop over blocks to add (or remove) comments
+        current_block: QTextBlock = QTextBlock(start_block)
+        while current_block.isValid() and current_block.blockNumber() <= end_block.blockNumber():
+            if is_comment_block:
+                self.remove_comment(text_cursor)
+            else:
+                self.comment_line(text_cursor)
+            current_block = current_block.next()
+            text_cursor.movePosition(QTextCursor.NextBlock, QTextCursor.KeepAnchor)
 
     def focusInEvent(self, event: QFocusEvent) -> None:
         """
@@ -449,8 +571,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         super(MindustryLogicEditor, self).insertFromMimeData(source)
 
         if source.hasText():
-            source_text = source.text().splitlines()
-            for line in source_text:
+            for line in source.text().splitlines():
                 for word in line.split():
                     if word.isalnum():
                         self.add_word_to_keyword(word)
@@ -571,6 +692,34 @@ class MindustryLogicEditor(QPlainTextEdit):
         suffix: str = completion[-suffix_len:]
         text_cursor.insertText(suffix)
         self.setTextCursor(text_cursor)
+
+    @staticmethod
+    def comment_line(text_cursor: QTextCursor) -> None:
+        """
+        Add comment (#) to the start of current line where the cursor is
+
+        :param text_cursor:
+        :type text_cursor:
+        :return:
+        :rtype:
+        """
+        line_text: str = text_cursor.block().text()
+        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        if line_text.startswith(" "):
+            text_cursor.insertText("#")
+        else:
+            text_cursor.insertText("# ")
+
+    @staticmethod
+    def remove_comment(text_cursor: QTextCursor) -> None:
+        line_text: str = text_cursor.block().text()
+        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        if line_text.startswith("# "):
+            offset: int = 2
+        else:
+            offset: int = 1
+        text_cursor.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor, offset)
+        text_cursor.removeSelectedText()
 
 
 if __name__ == "__main__":
