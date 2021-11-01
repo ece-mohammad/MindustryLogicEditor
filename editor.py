@@ -99,6 +99,12 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.remove_lines_action.triggered.connect(self.remove_lines)
         self.addAction(self.remove_lines_action)
 
+        # duplicate lines action
+        self.duplicate_lines_action: QAction = QAction(self)
+        self.duplicate_lines_action.setShortcut(QKeySequence(Qt.CTRL | Qt.ALT | Qt.Key_Down))
+        self.duplicate_lines_action.triggered.connect(self.duplicate_lines)
+        self.addAction(self.duplicate_lines_action)
+
         # ----------------------------------------------------------------------
         # ------------------------- Editor components --------------------------
         # ----------------------------------------------------------------------
@@ -493,6 +499,21 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         self.enlarge_selection(text_cursor)
         text_cursor.removeSelectedText()
+
+    def duplicate_lines(self) -> None:
+        """
+        duplicate current line or current selected lines
+
+        :return: None
+        :rtype: None
+        """
+        text_cursor: QTextCursor = self.textCursor()
+        self.enlarge_selection(text_cursor)
+        selected_text = text_cursor.selectedText()
+        text_cursor.clearSelection()
+        text_cursor.insertBlock()
+        text_cursor.insertText(selected_text)
+        self.setTextCursor(text_cursor)
 
     def focusInEvent(self, event: QFocusEvent) -> None:
         """
