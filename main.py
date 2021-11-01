@@ -5,6 +5,7 @@
 import os
 import pathlib
 import sys
+import time
 
 from PySide2.QtCore import *
 from PySide2.QtGui import *
@@ -34,6 +35,10 @@ class MainWindow(QMainWindow):
         self.edit_menu: QMenu = QMenu("&Edit")  # edit menu
         self.file_toolbar = QToolBar("File")  # file toolbar
         self.edit_toolbar = QToolBar("Edit")  # edit toolbar
+
+        # title update interval
+        self.title_update_interval: int = 1 * 1000
+        self.startTimer(self.title_update_interval, Qt.VeryCoarseTimer)
 
         # add editor to container
         self.vert_layout.addWidget(self.editor)
@@ -207,6 +212,19 @@ class MainWindow(QMainWindow):
         # show main window
         self.update_title()
 
+    def timerEvent(self, event: QTimerEvent) -> None:
+        """
+        Handle Timer event
+
+        :param event: Timer event
+        :type event: QTimerEvent
+        :return: None
+        :rtype: None
+        """
+
+        super(MainWindow, self).timerEvent(event)
+        self.update_title()
+
     def show_error(self, message: str) -> None:
         """Show error in a message box to user"""
         error = QMessageBox(parent=self)
@@ -219,8 +237,12 @@ class MainWindow(QMainWindow):
         editor_title: str = "Mindustry Logic IDE"
         editor_path: pathlib.Path = self.editor.path
 
+        print(f"update_title: {self.editor.is_modified()=} {time.asctime()!r}")
+
         if editor_path is None:
-            editor_title = f"new file* | {editor_title}"
+            editor_title = f"new file * | {editor_title}"
+        elif self.editor.is_modified():
+            editor_title = f"{str(editor_path)} * | {editor_title}"
         else:
             editor_title = f"{str(editor_path)} | {editor_title}"
 

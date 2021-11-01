@@ -4,8 +4,9 @@
 
 import math
 import pathlib
-import string
+import tempfile
 import sys
+import time
 from typing import List, Optional, Union
 
 from PySide2.QtCore import *
@@ -15,7 +16,6 @@ from PySide2.QtWidgets import *
 from completer import MindustryLogicCompleter
 from highlighter import MindustryLogicSyntaxHighlighter
 from syntax_file_parser import SyntaxFileParser
-import editor_utils
 
 
 class LineNumberArea(QWidget):
@@ -75,6 +75,18 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         # current open file path
         self.path: Optional[pathlib.Path] = None
+
+        # auo save interval
+        self.auto_save_interval: int = 60 * 1000
+
+        # auto save timer (id: 1)
+        self.startTimer(self.auto_save_interval, Qt.VeryCoarseTimer)
+
+        # editor's document is dirty flag
+        self.is_saved: bool = False
+
+        # connect text changed signal
+        self.textChanged.connect(self.on_text_change)
 
         # text highlighter
         self.highlighter: MindustryLogicSyntaxHighlighter = MindustryLogicSyntaxHighlighter(self.document())
@@ -146,6 +158,15 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.update_line_number_area_width(0)
         self.highlight_current_line()
 
+    def is_modified(self) -> True:
+        """
+        Return true if the editor's document was modified
+
+        :return: True if editor's document was modified, False otherwise
+        :rtype: bool
+        """
+        return not self.is_saved
+
     def create_new_file(self) -> None:
         """
         create new file
@@ -155,6 +176,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         """
         self.clear()
         self.path = None
+        self.is_saved = False
 
     def open_file(self) -> None:
         """
@@ -180,6 +202,7 @@ class MindustryLogicEditor(QPlainTextEdit):
             else:
                 self.path = pathlib.Path(new_file)
                 self.setPlainText(file_content)
+                self.is_saved = True
 
     def save_file(self) -> None:
         """
@@ -229,6 +252,31 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         else:
             self.path = file_path
+            self.is_saved = True
+
+    def auto_save(self) -> None:
+        """
+        Auto save the current open file
+
+        :return: None
+        :rtype: None
+        """
+        if self.path is None:
+            return
+
+        self.save_file()
+
+    def timerEvent(self, event: QTimerEvent):
+        """
+        Handle timer event
+
+        :param event: Timer event
+        :type event: QTimerEvent
+        :return: None
+        :rtype: None
+        """
+        super(MindustryLogicEditor, self).timerEvent(event)
+        self.auto_save()  # auto save file
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         """
@@ -806,6 +854,16 @@ class MindustryLogicEditor(QPlainTextEdit):
         suffix: str = completion[-suffix_len:]
         text_cursor.insertText(suffix)
         self.setTextCursor(text_cursor)
+
+    @Slot()
+    def on_text_change(self, *args, **kwargs):
+        """
+        Text changed signal
+
+        :return: None
+        :rtype: None
+        """
+        self.is_saved = False
 
     @staticmethod
     def comment_line(text_cursor: QTextCursor) -> None:
