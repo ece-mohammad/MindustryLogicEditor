@@ -105,6 +105,18 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.duplicate_lines_action.triggered.connect(self.duplicate_lines)
         self.addAction(self.duplicate_lines_action)
 
+        # zoom in action
+        self.zoom_in_action: QAction = QAction(self)
+        self.zoom_in_action.setShortcut(QKeySequence(Qt.Key_Plus | Qt.CTRL))
+        self.zoom_in_action.triggered.connect(self.zoomIn)
+        self.addAction(self.zoom_in_action)
+
+        # zoom out action
+        self.zoom_out_action: QAction = QAction(self)
+        self.zoom_out_action.setShortcut(QKeySequence(Qt.Key_Minus | Qt.CTRL))
+        self.zoom_out_action.triggered.connect(self.zoomOut)
+        self.addAction(self.zoom_out_action)
+
         # ----------------------------------------------------------------------
         # ------------------------- Editor components --------------------------
         # ----------------------------------------------------------------------
@@ -576,6 +588,7 @@ class MindustryLogicEditor(QPlainTextEdit):
                 # line number
                 number: str = str(block_number + 1)
                 painter.setPen(Qt.black)
+                painter.setFont(self.font)
                 painter.drawText(
                     0,
                     top,
@@ -649,6 +662,35 @@ class MindustryLogicEditor(QPlainTextEdit):
                     if word.isalnum():
                         self.add_word_to_keyword(word)
 
+    def zoomIn(self, range: int = ...) -> None:
+        """
+        Zoom in
+
+        :param range:
+        :type range:
+        :return:
+        :rtype:
+        """
+        font_size = self.font.pointSize()
+        self.font.setPointSize(font_size + 1)
+        self.setFont(self.font)
+        self.update_line_number_area_width(0)
+
+    def zoomOut(self, range: int = ...) -> None:
+        """
+        Zoom out
+
+        :param range:
+        :type range:
+        :return:
+        :rtype:
+        """
+
+        font_size = self.font.pointSize()
+        self.font.setPointSize(font_size - 1)
+        self.setFont(self.font)
+        self.update_line_number_area_width(0)
+
     @Slot(int)
     def update_line_number_area_width(self, new_block_count: int):
         """
@@ -667,7 +709,6 @@ class MindustryLogicEditor(QPlainTextEdit):
             0,
             0
         )
-
         # get first visible text block
         text_block: QTextBlock = self.firstVisibleBlock()
         block_bottom: int = self.blockBoundingGeometry(text_block).translated(self.contentOffset()).bottom()
