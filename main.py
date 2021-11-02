@@ -237,8 +237,6 @@ class MainWindow(QMainWindow):
         editor_title: str = "Mindustry Logic IDE"
         editor_path: pathlib.Path = self.editor.path
 
-        print(f"update_title: {self.editor.is_modified()=} {time.asctime()!r}")
-
         if editor_path is None:
             editor_title = f"new file * | {editor_title}"
         elif self.editor.is_modified():
