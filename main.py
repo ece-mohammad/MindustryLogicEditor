@@ -5,7 +5,7 @@
 import os
 import pathlib
 import sys
-from typing import Dict, Optional
+import typing
 
 from PySide2.QtCore import *
 from PySide2.QtGui import *
@@ -29,15 +29,13 @@ class MainWindow(QMainWindow):
         # text editor
         self.container: QTabWidget = QTabWidget()  # container (tab widget)
 
+        self.current_open_files: typing.Dict[str, int] = dict()
+
         self.status_bar: QStatusBar = QStatusBar()  # status bar
         self.file_menu: QMenu = QMenu("&File")  # file menu
         self.edit_menu: QMenu = QMenu("&Edit")  # edit menu
         self.file_toolbar = QToolBar("File")  # file toolbar
         self.edit_toolbar = QToolBar("Edit")  # edit toolbar
-
-        # title update interval
-        self.title_update_interval: int = 0  # as soon as no QEvents are queued
-        self.startTimer(self.title_update_interval)
 
         # configure container (tab widget)
         self.container.setTabsClosable(True)  # set tabs closable
@@ -248,12 +246,12 @@ class MainWindow(QMainWindow):
         message.setStandardButtons(QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
         return message.exec_()
 
-    def bind_editor_shortcuts(self, editor: QTextEdit) -> None:
+    def bind_editor_shortcuts(self, editor: MindustryLogicEditor) -> None:
         """
         Bind window shortcuts (select, copy, paste, undo, redo) to editor instance
 
         :param editor: editor instance
-        :type editor: QTextEdit
+        :type editor: MindustryLogicEditor
         :return: None
         :rtype: None
         """
@@ -263,18 +261,7 @@ class MainWindow(QMainWindow):
         self.paste_action.triggered.connect(editor.paste)
         self.undo_action.triggered.connect(editor.undo)
         self.redo_action.triggered.connect(editor.redo)
-
-    def timerEvent(self, event: QTimerEvent) -> None:
-        """
-        Handle Timer event
-
-        :param event: Timer event
-        :type event: QTimerEvent
-        :return: None
-        :rtype: None
-        """
-        super(MainWindow, self).timerEvent(event)
-        self.update_title()
+        editor.DocumentModified.connect(self.update_title)
 
     def update_title(self) -> None:
         """Update editor window title"""
@@ -312,6 +299,13 @@ class MainWindow(QMainWindow):
         if current_editor.path is not None:
             self.add_editor()
         self.get_current_editor().open_file()
+        open_file: str = self.get_current_editor().get_open_file_name()
+        file_tab: int = self.current_open_files.get(open_file, -1)
+
+        if file_tab != -1:
+            self.container.removeTab(file_tab)
+
+        self.current_open_files[open_file] = self.container.currentIndex()
         self.update_title()
 
     def save_file(self) -> None:
@@ -352,7 +346,7 @@ class MainWindow(QMainWindow):
         Get current active text editor
 
         :return: active text edit
-        :rtype: QTextEdit
+        :rtype: MindustryLogicEditor
         """
         return self.container.currentWidget()
 

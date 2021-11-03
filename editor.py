@@ -62,6 +62,8 @@ class MindustryLogicEditor(QPlainTextEdit):
         - themes
         """
 
+    DocumentModified: Signal() = Signal()
+
     def __init__(self, *args, **kwargs):
         """
         Initialize mindustry logic editor instance
@@ -368,6 +370,10 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         # auto complete suggestions
         self.auto_complete_suggestions(event)
+
+        if self.document().isUndoAvailable():
+            self.is_saved = False
+            self.DocumentModified.emit()
 
     def replace_tab_event(self, event: QKeyEvent) -> QKeyEvent:
         """
