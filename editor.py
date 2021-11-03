@@ -615,9 +615,9 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype: None
         """
 
-        current_line: QTextBlock = text_cursor.block()
-        previous_line: QTextBlock = current_line.previous()
-        position_in_block: int = text_cursor.positionInBlock()
+        current_line: QTextBlock = text_cursor.block()  # current line
+        previous_line: QTextBlock = current_line.previous()  # previous line
+        position_in_block: int = text_cursor.positionInBlock()  # cursor position in current line
 
         text_cursor.beginEditBlock()  # start edit group
 
@@ -650,20 +650,20 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype: None
         """
 
-        selection_start: int = text_cursor.selectionStart()
-        selection_end: int = text_cursor.selectionEnd()
-        selection_length: int = selection_end - selection_start
+        selection_start: int = text_cursor.selectionStart()  # current selection start position
+        selection_end: int = text_cursor.selectionEnd()  # current selection edn position
+        selection_length: int = selection_end - selection_start  # current selection length
 
-        text_cursor.setPosition(selection_end, QTextCursor.MoveAnchor)
+        text_cursor.setPosition(selection_end, QTextCursor.MoveAnchor)  # go to selection end
 
-        text_cursor.setPosition(selection_start, QTextCursor.KeepAnchor)
-        relative_start: int = text_cursor.positionInBlock()
+        text_cursor.setPosition(selection_start, QTextCursor.KeepAnchor)  # go to selection start
+        relative_start: int = text_cursor.positionInBlock()  # selection start position within line
 
         self.enlarge_selection(text_cursor)  # enlarge selection
 
         document: QTextDocument = self.document()
-        previous_line: QTextBlock = document.findBlock(text_cursor.selectionStart()).previous()
-        previous_line_start: int = previous_line.position()
+        previous_line: QTextBlock = document.findBlock(text_cursor.selectionStart()).previous()  # previous line
+        previous_line_start: int = previous_line.position()  # previous line start position
 
         if not previous_line.isValid():
             return
@@ -675,9 +675,9 @@ class MindustryLogicEditor(QPlainTextEdit):
         text_cursor.removeSelectedText()  # remove lines
         text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)  # select previous line
         text_cursor.movePosition(QTextCursor.Up, QTextCursor.KeepAnchor)
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.KeepAnchor)
         text_cursor.insertText(f"{selection_text}\n{previous_line.text()}")  # insert text
 
+        # return cursor to its position in the line & retore selection
         text_cursor.setPosition(previous_line_start + relative_start, QTextCursor.MoveAnchor)
         text_cursor.setPosition(text_cursor.position() + selection_length, QTextCursor.KeepAnchor)
 
@@ -691,7 +691,92 @@ class MindustryLogicEditor(QPlainTextEdit):
         :return: None
         :rtype: None
         """
-        pass
+        text_cursor: QTextCursor = self.textCursor()
+
+        # check if next line exists
+        if not text_cursor.block().next().isValid():
+            return
+
+        if text_cursor.hasSelection():
+            self.move_selected_lines_down(text_cursor)
+        else:
+            self.move_current_line_down(text_cursor)
+
+    def move_current_line_down(self, text_cursor: QTextCursor) -> None:
+        """
+        Move current line (where cursor is) down by one line
+
+        :param text_cursor: text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+        current_line: QTextBlock = text_cursor.block()  # current line
+        next_line: QTextBlock = current_line.next()  # next line
+        position_in_block: int = text_cursor.positionInBlock()  # cursor position in current line
+
+        text_cursor.beginEditBlock()  # start edit group
+
+        # select current line & previous line
+        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        text_cursor.movePosition(QTextCursor.Down, QTextCursor.KeepAnchor)
+        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+
+        # insert current line then previous line text
+        text_cursor.insertText(f"{next_line.text()}\n{current_line.text()}")
+
+        # return cursor to it's original relative position in the current line
+        current_position = text_cursor.position()
+        text_cursor.setPosition(current_position + position_in_block - text_cursor.positionInBlock())
+
+        text_cursor.endEditBlock()  # end edit group
+
+        self.setTextCursor(text_cursor)
+
+    def move_selected_lines_down(self, text_cursor: QTextCursor) -> None:
+        """
+        Move selected lines up by one line
+
+        :param text_cursor: text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+
+        selection_start: int = text_cursor.selectionStart()  # selection start
+        selection_end: int = text_cursor.selectionEnd()  # selection end
+        old_selection_length: int = selection_end - selection_start   # old selection length
+
+        text_cursor.setPosition(selection_start, QTextCursor.MoveAnchor)    # move to selection start position
+        relative_start_position: int = text_cursor.positionInBlock()        # cursor position within the line
+
+        text_cursor.setPosition(selection_end, QTextCursor.KeepAnchor)
+
+        self.enlarge_selection(text_cursor)  # enlarge selection
+        selection_length: int = text_cursor.selectionEnd() - text_cursor.selectionStart()
+
+        document: QTextDocument = self.document()
+        next_line: QTextBlock = document.findBlock(text_cursor.selectionEnd()).next()  # next line
+        next_line_text: str = next_line.text()  # next line text
+
+        if not next_line.isValid():
+            return
+
+        text_cursor.beginEditBlock()  # start edit group
+
+        selection_text: str = text_cursor.selectedText()  # selected lines tex
+
+        text_cursor.removeSelectedText()  # remove lines
+        text_cursor.movePosition(QTextCursor.Down, QTextCursor.KeepAnchor)  # select next line
+        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+        text_cursor.insertText(f"{next_line_text}\n{selection_text}")  # insert text
+
+        # reposition cursor & restore selection
+        text_cursor.setPosition(text_cursor.position() - selection_length + relative_start_position, QTextCursor.MoveAnchor)
+        text_cursor.setPosition(text_cursor.position() + old_selection_length, QTextCursor.KeepAnchor)
+
+        text_cursor.endEditBlock()  # end edit group
+        self.setTextCursor(text_cursor)
 
     def focusInEvent(self, event: QFocusEvent) -> None:
         """
