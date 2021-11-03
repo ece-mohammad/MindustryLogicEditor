@@ -371,10 +371,6 @@ class MindustryLogicEditor(QPlainTextEdit):
         # auto complete suggestions
         self.auto_complete_suggestions(event)
 
-        if self.document().isUndoAvailable():
-            self.is_saved = False
-            self.DocumentModified.emit()
-
     def replace_tab_event(self, event: QKeyEvent) -> QKeyEvent:
         """
         Replace tabs with spaces
@@ -1087,6 +1083,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype: None
         """
         self.is_saved = False
+        self.DocumentModified.emit()
 
     @staticmethod
     def comment_line(text_cursor: QTextCursor) -> None:

@@ -291,21 +291,24 @@ class MainWindow(QMainWindow):
         """new editor file"""
         self.add_editor()
         self.get_current_editor().create_new_file()
+        self.get_current_editor().setFocus()
         self.update_title()
 
     def open_file(self) -> None:
         """Open an existing file"""
         current_editor: MindustryLogicEditor = self.get_current_editor()
+
         if current_editor.path is not None:
             self.add_editor()
-        self.get_current_editor().open_file()
-        open_file: str = self.get_current_editor().get_open_file_name()
-        file_tab: int = self.current_open_files.get(open_file, -1)
 
-        if file_tab != -1:
+        self.get_current_editor().open_file()
+        file_name: str = self.get_current_editor().get_open_file_name()
+        file_tab: int = self.current_open_files.get(file_name, None)
+
+        if file_tab is not None:
             self.container.removeTab(file_tab)
 
-        self.current_open_files[open_file] = self.container.currentIndex()
+        self.current_open_files[file_name] = self.container.currentIndex()
         self.update_title()
 
     def save_file(self) -> None:
@@ -358,8 +361,9 @@ class MainWindow(QMainWindow):
         :rtype: None
         """
         current_editor: MindustryLogicEditor = self.get_current_editor()
+        current_file_name: str = current_editor.get_open_file_name()
         if current_editor.is_modified():
-            confirm_save: int = self.confirm_message(f"Save file {current_editor.get_open_file_name()} before closing?")
+            confirm_save: int = self.confirm_message(f"Save file {current_file_name} before closing?")
             if confirm_save == QMessageBox.Cancel:
                 return
             elif confirm_save == QMessageBox.Yes:
@@ -367,6 +371,7 @@ class MainWindow(QMainWindow):
             else:  # QMessageBox.No
                 pass  # don't save file
 
+        del self.current_open_files[current_file_name]
         self.close_current_tab(self.container.currentIndex())
 
     def close_editor(self) -> None:
