@@ -861,6 +861,10 @@ class MindustryLogicEditor(QPlainTextEdit):
 
                 # code line number
                 block_data: CodeLineNumber = text_block.userData()
+
+                if block_data is None:
+                    break
+
                 painter.setPen(Qt.darkCyan)
                 painter.drawText(
                     code_line_number_area_offset,
