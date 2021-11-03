@@ -37,8 +37,8 @@ class MainWindow(QMainWindow):
         self.edit_toolbar = QToolBar("Edit")  # edit toolbar
 
         # title update interval
-        self.title_update_interval: int = 1 * 1000
-        self.startTimer(self.title_update_interval, Qt.VeryCoarseTimer)
+        self.title_update_interval: int = 0  # as soon as no QEvents are queued
+        self.startTimer(self.title_update_interval)
 
         # add editor to container
         self.vert_layout.addWidget(self.editor)

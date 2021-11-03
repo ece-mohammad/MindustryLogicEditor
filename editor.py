@@ -179,6 +179,15 @@ class MindustryLogicEditor(QPlainTextEdit):
         """
         return not self.is_saved
 
+    def get_open_file_name(self) -> str:
+        """
+        Get opened file name
+
+        :return: opened file name
+        :rtype: str
+        """
+        return self.path.name if self.path is not None else "new file"
+
     def create_new_file(self) -> None:
         """
         create new file
@@ -745,10 +754,10 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         selection_start: int = text_cursor.selectionStart()  # selection start
         selection_end: int = text_cursor.selectionEnd()  # selection end
-        old_selection_length: int = selection_end - selection_start   # old selection length
+        old_selection_length: int = selection_end - selection_start  # old selection length
 
-        text_cursor.setPosition(selection_start, QTextCursor.MoveAnchor)    # move to selection start position
-        relative_start_position: int = text_cursor.positionInBlock()        # cursor position within the line
+        text_cursor.setPosition(selection_start, QTextCursor.MoveAnchor)  # move to selection start position
+        relative_start_position: int = text_cursor.positionInBlock()  # cursor position within the line
 
         text_cursor.setPosition(selection_end, QTextCursor.KeepAnchor)
 
@@ -772,7 +781,8 @@ class MindustryLogicEditor(QPlainTextEdit):
         text_cursor.insertText(f"{next_line_text}\n{selection_text}")  # insert text
 
         # reposition cursor & restore selection
-        text_cursor.setPosition(text_cursor.position() - selection_length + relative_start_position, QTextCursor.MoveAnchor)
+        text_cursor.setPosition(text_cursor.position() - selection_length + relative_start_position,
+                                QTextCursor.MoveAnchor)
         text_cursor.setPosition(text_cursor.position() + old_selection_length, QTextCursor.KeepAnchor)
 
         text_cursor.endEditBlock()  # end edit group
