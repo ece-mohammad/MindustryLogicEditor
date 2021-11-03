@@ -404,7 +404,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         """
 
         completer_popup = self.completer.popup()
-        event_text: str = event.text()
+        event_text: str = event.text().strip()
 
         # get prefix under the cursor
         completion_prefix: str = self.text_under_cursor()
