@@ -62,8 +62,6 @@ class MindustryLogicEditor(QPlainTextEdit):
         - themes
         """
 
-    DocumentModified: Signal() = Signal()
-
     def __init__(self, *args, **kwargs):
         """
         Initialize mindustry logic editor instance
@@ -83,12 +81,6 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         # auto save timer (id: 1)
         self.startTimer(self.auto_save_interval, Qt.VeryCoarseTimer)
-
-        # editor's document is dirty flag
-        self.is_saved: bool = False
-
-        # connect text changed signal
-        self.textChanged.connect(self.on_text_change)
 
         # text highlighter
         self.highlighter: MindustryLogicSyntaxHighlighter = MindustryLogicSyntaxHighlighter(self.document())
@@ -179,7 +171,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         :return: True if editor's document was modified, False otherwise
         :rtype: bool
         """
-        return not self.is_saved
+        return self.document().isModified()
 
     def get_open_file_name(self) -> str:
         """
@@ -199,7 +191,6 @@ class MindustryLogicEditor(QPlainTextEdit):
         """
         self.clear()
         self.path = None
-        self.is_saved = False
 
     def open_file(self) -> None:
         """
@@ -225,7 +216,6 @@ class MindustryLogicEditor(QPlainTextEdit):
             else:
                 self.path = pathlib.Path(new_file)
                 self.setPlainText(file_content)
-                self.is_saved = True
 
     def save_file(self) -> None:
         """
@@ -275,7 +265,7 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         else:
             self.path = file_path
-            self.is_saved = True
+            self.document().setModified(False)
 
     def auto_save(self) -> None:
         """
@@ -1073,17 +1063,6 @@ class MindustryLogicEditor(QPlainTextEdit):
         suffix: str = completion[-suffix_len:]
         text_cursor.insertText(suffix)
         self.setTextCursor(text_cursor)
-
-    @Slot()
-    def on_text_change(self, *args, **kwargs):
-        """
-        Text changed signal
-
-        :return: None
-        :rtype: None
-        """
-        self.is_saved = False
-        self.DocumentModified.emit()
 
     @staticmethod
     def comment_line(text_cursor: QTextCursor) -> None:

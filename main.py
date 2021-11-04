@@ -261,7 +261,7 @@ class MainWindow(QMainWindow):
         self.paste_action.triggered.connect(editor.paste)
         self.undo_action.triggered.connect(editor.undo)
         self.redo_action.triggered.connect(editor.redo)
-        editor.DocumentModified.connect(self.update_title)
+        editor.modificationChanged.connect(self.editor_content_changed)
 
     def update_title(self) -> None:
         """Update editor window title"""
@@ -274,15 +274,19 @@ class MainWindow(QMainWindow):
 
         editor_path: pathlib.Path = current_editor.path
         open_file_name: str = current_editor.get_open_file_name()
+
         if current_editor.is_modified():
             open_file_name = f"{open_file_name} *"
 
         if editor_path is None:
             editor_title = f"new file * | {editor_title}"
+            self.container.tabBar().setTabTextColor(self.container.currentIndex(), Qt.red)
         elif current_editor.is_modified():
             editor_title = f"{str(editor_path)} * | {editor_title}"
+            self.container.tabBar().setTabTextColor(self.container.currentIndex(), Qt.red)
         else:
             editor_title = f"{str(editor_path)} | {editor_title}"
+            self.container.tabBar().setTabTextColor(self.container.currentIndex(), Qt.black)
 
         self.setWindowTitle(editor_title)
         self.container.setTabText(self.container.currentIndex(), open_file_name)
@@ -292,6 +296,8 @@ class MainWindow(QMainWindow):
         self.add_editor()
         self.get_current_editor().create_new_file()
         self.get_current_editor().setFocus()
+        file_name: str = self.get_current_editor().get_open_file_name()
+        self.current_open_files[file_name] = self.container.currentIndex()
         self.update_title()
 
     def open_file(self) -> None:
@@ -309,6 +315,7 @@ class MainWindow(QMainWindow):
             self.container.removeTab(file_tab)
 
         self.current_open_files[file_name] = self.container.currentIndex()
+        self.get_current_editor().setFocus()
         self.update_title()
 
     def save_file(self) -> None:
@@ -418,7 +425,12 @@ class MainWindow(QMainWindow):
         self.container.removeTab(tab_index)
 
         if self.container.count() < 1:
-            self.add_editor()
+            self.create_new_file()
+
+    @Slot(bool)
+    def editor_content_changed(self, changed: bool):
+        if changed:
+            self.update_title()
 
 
 if __name__ == "__main__":
