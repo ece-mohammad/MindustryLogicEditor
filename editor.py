@@ -553,12 +553,13 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype:
         """
         text_cursor: QTextCursor = self.textCursor()
-        has_text: bool = len(text_cursor.block().text().strip()) > 0
+        has_text: bool = len(text_cursor.block().text()) > 0
         if has_text:
             text_cursor.select(QTextCursor.BlockUnderCursor)
             text_cursor.removeSelectedText()
+            text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.MoveAnchor)
         else:
-            text_cursor.deleteChar()
+            text_cursor.deletePreviousChar()
 
     def remove_selected_lines(self, text_cursor: QTextCursor):
         """
