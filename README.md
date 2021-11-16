@@ -1,7 +1,7 @@
 
 # Mindustry Logic Editor
 
-A simple code editor for mindustry logic
+A simple code editor for [Mindustry](https://anuke.itch.io/mindustry)'s in game logic
 
 ## Features
 
