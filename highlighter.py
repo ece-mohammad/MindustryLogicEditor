@@ -90,7 +90,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
         string_literal_format.setForeground(QBrush(QColor(250, 130, 60)))
         self.highlighting_rules.append(
             MindustryLogicSyntaxHighlighter.HighlightingRule(
-                pattern=QRegularExpression("\"\\w*\"|\'\\w*\'"),
+                pattern=QRegularExpression("\"[\\w \\d]*\"|\'[\\w \\d]*\'"),
                 rule_format=string_literal_format
             )
         )

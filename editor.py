@@ -4,9 +4,7 @@
 
 import math
 import pathlib
-import tempfile
 import sys
-import time
 from typing import List, Optional, Union
 
 from PySide2.QtCore import *
