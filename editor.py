@@ -105,11 +105,17 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.remove_lines_action.triggered.connect(self.remove_lines)
         self.addAction(self.remove_lines_action)
 
-        # duplicate lines action
-        self.duplicate_lines_action: QAction = QAction(self)
-        self.duplicate_lines_action.setShortcut(QKeySequence(Qt.CTRL | Qt.ALT | Qt.Key_Down))
-        self.duplicate_lines_action.triggered.connect(self.duplicate_lines)
-        self.addAction(self.duplicate_lines_action)
+        # duplicate lines action down
+        self.duplicate_lines_down_action: QAction = QAction(self)
+        self.duplicate_lines_down_action.setShortcut(QKeySequence(Qt.CTRL | Qt.ALT | Qt.Key_Down))
+        self.duplicate_lines_down_action.triggered.connect(self.duplicate_lines_down)
+        self.addAction(self.duplicate_lines_down_action)
+
+        # duplicate lines action up
+        self.duplicate_lines_up_action: QAction = QAction(self)
+        self.duplicate_lines_up_action.setShortcut(QKeySequence(Qt.CTRL | Qt.ALT | Qt.Key_Up))
+        self.duplicate_lines_up_action.triggered.connect(self.duplicate_lines_up)
+        self.addAction(self.duplicate_lines_up_action)
 
         # move line up action
         self.move_lines_up_action: QAction = QAction(self)
@@ -574,7 +580,29 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.enlarge_selection(text_cursor)
         text_cursor.removeSelectedText()
 
-    def duplicate_lines(self) -> None:
+    def duplicate_lines_up(self) -> None:
+        """
+
+        :return:
+        :rtype:
+        """
+        text_cursor: QTextCursor = self.textCursor()
+        self.enlarge_selection(text_cursor)
+
+        selection_start: int = text_cursor.selectionStart()
+        selection_end: int = text_cursor.selectionEnd()
+        selected_text: str = text_cursor.selectedText()
+
+        if selected_text in ("\u2029", "\u2028", "\u000A", "\u000C", "\u000D", ""):
+            return
+
+        self.duplicate_selection(text_cursor)
+
+        text_cursor.setPosition(selection_start, QTextCursor.MoveAnchor)
+        text_cursor.setPosition(selection_end, QTextCursor.KeepAnchor)
+        self.setTextCursor(text_cursor)
+
+    def duplicate_lines_down(self) -> None:
         """
         duplicate current line or current selected lines
 
@@ -582,11 +610,21 @@ class MindustryLogicEditor(QPlainTextEdit):
         :rtype: None
         """
         text_cursor: QTextCursor = self.textCursor()
-        self.enlarge_selection(text_cursor)
-        selected_text = text_cursor.selectedText()
-        text_cursor.clearSelection()
-        text_cursor.insertBlock()
-        text_cursor.insertText(selected_text)
+
+        selection_length: int = self.enlarge_selection(text_cursor)
+        selected_text: str = text_cursor.selectedText()
+
+        if selected_text in ("\u2029", "\u2028", "\u000A", "\u000C", "\u000D", ""):
+            return
+
+        offset: int = 1 if selected_text[-1] in ("\u2029", "\u2028", "\u000A", "\u000C", "\u000D") else 0
+
+        self.duplicate_selection(text_cursor)
+
+        current_position: int = text_cursor.position()
+
+        text_cursor.setPosition(current_position - selection_length, QTextCursor.MoveAnchor)
+        text_cursor.setPosition(current_position + offset, QTextCursor.KeepAnchor)
         self.setTextCursor(text_cursor)
 
     def move_lines_up(self) -> None:
@@ -1047,11 +1085,12 @@ class MindustryLogicEditor(QPlainTextEdit):
     @Slot(str)
     def insert_completion(self, completion: str) -> None:
         """
+        Insert selected completion at the current text cursor position
 
-        :param completion:
-        :type completion:
-        :return:
-        :rtype:
+        :param completion: selected completion
+        :type completion: str
+        :return: None
+        :rtype: None
         """
 
         prefix = self.completer.completionPrefix()
@@ -1084,6 +1123,15 @@ class MindustryLogicEditor(QPlainTextEdit):
 
     @staticmethod
     def remove_comment(text_cursor: QTextCursor) -> None:
+        """
+        Removes comment from current line
+
+        :param text_cursor: text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+
         line_text: str = text_cursor.block().text()
         text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
         if line_text.startswith("# "):
@@ -1094,26 +1142,52 @@ class MindustryLogicEditor(QPlainTextEdit):
         text_cursor.removeSelectedText()
 
     @staticmethod
-    def enlarge_selection(text_cursor: QTextCursor) -> None:
+    def enlarge_selection(text_cursor: QTextCursor) -> int:
         """
         Enlarge current selection from the start of the first line
         to the end of the last line
 
         :param text_cursor: current text cursor
         :type text_cursor: QTextCursor
-        :return: text cursor with the new selection
-        :rtype: QTextCursor
+        :return: length of the selection
+        :rtype: int
         """
         selection_start: int = text_cursor.selectionStart()
         selection_end: int = text_cursor.selectionEnd()
 
-        # move to the start of the first selected line
-        text_cursor.setPosition(selection_start, QTextCursor.MoveAnchor)
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        if selection_start == selection_end:
+            text_cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.MoveAnchor)
+            text_cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
 
-        # move to the end of the last selected line
-        text_cursor.setPosition(selection_end, QTextCursor.KeepAnchor)
-        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+        else:
+            # move to the start of the first selected line
+            text_cursor.setPosition(selection_start, QTextCursor.MoveAnchor)
+            text_cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.MoveAnchor)
+
+            # move to the end of the last selected line
+            text_cursor.setPosition(selection_end, QTextCursor.KeepAnchor)
+
+            if text_cursor.positionInBlock() == 0:
+                text_cursor.movePosition(QTextCursor.PreviousBlock, QTextCursor.KeepAnchor)
+
+            text_cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+
+        return text_cursor.selectionEnd() - text_cursor.selectionStart()
+
+    @staticmethod
+    def duplicate_selection(text_cursor: QTextCursor) -> None:
+        """
+        Duplicates current selected text
+
+        :param text_cursor: text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+
+        selection_text: str = text_cursor.selectedText()
+
+        text_cursor.insertText(f"{selection_text}\u2029{selection_text}")
 
 
 if __name__ == "__main__":
