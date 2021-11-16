@@ -91,6 +91,12 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.completer.setCaseSensitivity(Qt.CaseSensitive)
         self.completer.activated.connect(self.insert_completion)
 
+        # add text completer action
+        self.completer_action: QAction = QAction(self)
+        self.completer_action.setShortcut(QKeySequence(Qt.Key_Space | Qt.CTRL))
+        self.completer_action.triggered.connect(self.auto_complete_action)
+        self.addAction(self.completer_action)
+
         # add comment toggle action
         self.comment_toggle_action: QAction = QAction(self)
         self.comment_toggle_action.setShortcut(QKeySequence(Qt.Key_Slash | Qt.CTRL))
@@ -363,7 +369,7 @@ class MindustryLogicEditor(QPlainTextEdit):
                 self.add_word_to_keyword(text)
 
         # auto complete suggestions
-        self.auto_complete_suggestions(event)
+        self.auto_complete_suggestions(event.text().strip())
 
     def replace_tab_event(self, event: QKeyEvent) -> QKeyEvent:
         """
@@ -389,23 +395,22 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         return event
 
-    def auto_complete_suggestions(self, event: QKeyEvent) -> None:
+    def auto_complete_suggestions(self, suggestion_text: str) -> None:
         """
         Show and update auto complete suggestions
 
-        :param event: last key pressed event
-        :type event: QKeyEvent
+        :param suggestion_text: text to show suggestions for
+        :type suggestion_text: str
         :return: None
         :rtype: None
         """
 
         completer_popup = self.completer.popup()
-        event_text: str = event.text().strip()
 
         # get prefix under the cursor
         completion_prefix: str = self.text_under_cursor()
 
-        if len(completion_prefix) == 0 or len(event_text) == 0:
+        if len(completion_prefix) == 0 or len(suggestion_text) == 0:
             return completer_popup.hide()
 
         if completion_prefix == self.completer.currentCompletion():
@@ -422,6 +427,16 @@ class MindustryLogicEditor(QPlainTextEdit):
         cursor_rect.setX(cursor_rect.x() + self.line_number_area_width())
         cursor_rect.setWidth(rect_offset + self.line_number_area_width())
         self.completer.complete(cursor_rect)
+
+    def auto_complete_action(self) -> None:
+        """
+        Pop up auto complete suggestion for the current text under the cursor
+
+        :return: None
+        :rtype: None
+        """
+        suggestion_text: str = self.text_under_cursor().strip()
+        self.auto_complete_suggestions(suggestion_text)
 
     def comment_toggle(self) -> None:
         """
@@ -1097,9 +1112,8 @@ class MindustryLogicEditor(QPlainTextEdit):
             return
 
         text_cursor: QTextCursor = self.textCursor()
-        suffix_len: int = len(completion) - len(prefix)
-        suffix: str = completion[-suffix_len:]
-        text_cursor.insertText(suffix)
+        text_cursor.select(QTextCursor.WordUnderCursor)
+        text_cursor.insertText(completion)
         self.setTextCursor(text_cursor)
 
     @staticmethod
