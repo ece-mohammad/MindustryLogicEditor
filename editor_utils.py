@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 
-from PySide2.QtGui import *
+from PyQt5.QtCore import Qt
 
 
 def test_modifiers(value: Qt.KeyboardModifiers, flag: Qt.KeyboardModifier):

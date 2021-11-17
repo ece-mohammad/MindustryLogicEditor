@@ -1,2 +1,4 @@
-PySide2
+PyQt5
+PyQt5-stubs
 setuptools
+PyInstaller

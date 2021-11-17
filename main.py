@@ -7,9 +7,9 @@ import sys
 import logging as log
 import inspect
 
-from PySide2.QtCore import *
-from PySide2.QtGui import *
-from PySide2.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 from editor import MindustryLogicEditor
 
@@ -451,7 +451,7 @@ class MainWindow(QMainWindow):
 
         super(MainWindow, self).closeEvent(event)
 
-    @Slot(int)
+    @pyqtSlot(int)
     def close_tab(self, tab_index: int) -> None:
         """
         Close current open tab
@@ -466,12 +466,12 @@ class MainWindow(QMainWindow):
         if self.container.count() < 1:
             self.create_new_file()
 
-    @Slot(bool)
+    @pyqtSlot(bool)
     def editor_content_changed(self, changed: bool):
         if changed:
             self.update_title()
 
-    @Slot(int)
+    @pyqtSlot(int)
     def current_tab_changed(self, new_tab_index: int) -> None:
         """Current tab was changed"""
         if new_tab_index > -1:

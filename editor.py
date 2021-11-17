@@ -7,13 +7,14 @@ import pathlib
 import sys
 from typing import List, Optional, Union
 
-from PySide2.QtCore import *
-from PySide2.QtGui import *
-from PySide2.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 
 from completer import MindustryLogicCompleter
 from highlighter import MindustryLogicSyntaxHighlighter
 from syntax_file_parser import SyntaxFileParser
+from find_replace_widget import FindAndReplaceWidget, SearchFlags
 
 
 class LineNumberArea(QWidget):
@@ -1000,7 +1001,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         self.setFont(self.font)
         self.update_line_number_area_width(0)
 
-    @Slot(int)
+    @pyqtSlot(int)
     def update_line_number_area_width(self, new_block_count: int):
         """
         Update editor's viewport margins to show line number area
@@ -1047,7 +1048,7 @@ class MindustryLogicEditor(QPlainTextEdit):
             text_block.setUserData(current_block_data)
             text_block = text_block.next()
 
-    @Slot(QRect, int)
+    @pyqtSlot(QRect, int)
     def update_line_number_area(self, rect: QRect, dy: int) -> None:
         """
         Update editor's viewport margins after scrolling
@@ -1072,7 +1073,7 @@ class MindustryLogicEditor(QPlainTextEdit):
         if rect.contains(self.viewport().rect()):
             self.update_line_number_area_width(0)
 
-    @Slot()
+    @pyqtSlot()
     def highlight_current_line(self) -> None:
         """
         Highlight current line
@@ -1095,7 +1096,7 @@ class MindustryLogicEditor(QPlainTextEdit):
 
         self.setExtraSelections(extra_selections)
 
-    @Slot(str)
+    @pyqtSlot(str)
     def insert_completion(self, completion: str) -> None:
         """
         Insert selected completion at the current text cursor position
