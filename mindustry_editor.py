@@ -4,7 +4,7 @@
 
 import math
 import sys
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -43,22 +43,16 @@ class CodeLineNumber(QTextBlockUserData):
 
 
 class MindustryLogicEditor(BaseCodeEditor):
-    """Mindustry (game) logic editor
+    """
+    Mindustry (game) logic editor
 
     Features
         - highlight current line
         - current line numbering
-        - comment toggle
         - code line numbering
         - syntax coloring
         - code completion
-        - code snippets
-        - linter (errors & warnings)
-        - auto-wrap
-        - dark mode
         - tabs
-        - split view
-        - themes
         """
 
     def __init__(self, *args, **kwargs):
@@ -79,7 +73,7 @@ class MindustryLogicEditor(BaseCodeEditor):
         self.line_number_area.setFont(QFont("Consolas", 14, QFont.ExtraLight))
 
         # find and replace widget
-        self.find_and_replace_dialog: FindAndReplaceWidget = FindAndReplaceWidget(editor=self, parent=self)
+        self.find_and_replace_widget: FindAndReplaceWidget = FindAndReplaceWidget(editor=self, parent=self)
 
         # text highlighter
         self.highlighter: MindustryLogicSyntaxHighlighter = MindustryLogicSyntaxHighlighter(self.document())
@@ -94,6 +88,12 @@ class MindustryLogicEditor(BaseCodeEditor):
 
         # ------------------------------ Actions -------------------------------
 
+        # add comment toggle action
+        self.comment_toggle_action: QAction = QAction(self)
+        self.comment_toggle_action.setShortcut(QKeySequence(Qt.Key_Slash | Qt.CTRL))
+        self.comment_toggle_action.triggered.connect(self.comment_toggle)
+        self.addAction(self.comment_toggle_action)
+
         # add text completer action
         self.completer_action: QAction = QAction(self)
         self.completer_action.setShortcut(QKeySequence(Qt.Key_Space | Qt.CTRL))
@@ -107,11 +107,13 @@ class MindustryLogicEditor(BaseCodeEditor):
         self.addAction(self.find_and_replace_action)
 
         # -------------------------- slots & signals ---------------------------
+        self.cursorPositionChanged.connect(self.highlight_current_line)
         self.blockCountChanged.connect(self.update_line_number_area_width)
         self.updateRequest.connect(self.update_line_number_area)
 
         # ------------------------------- start --------------------------------
         self.update_line_number_area_width(0)
+        self.highlight_current_line()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         """
@@ -138,7 +140,7 @@ class MindustryLogicEditor(BaseCodeEditor):
         )
 
         # set find dialog geometry
-        self.find_and_replace_dialog.setGeometry(
+        self.find_and_replace_widget.setGeometry(
             QRect(
                 rect.left() + line_number_area_width,
                 rect.bottom() - find_and_replace_widget_size.height(),
@@ -196,6 +198,103 @@ class MindustryLogicEditor(BaseCodeEditor):
 
         # auto complete suggestions
         self.auto_complete_suggestions(event.text().strip())
+
+    def comment_toggle(self) -> None:
+        """
+        Toggle comment on current line or selected lines
+
+        :return: None
+        :rtype: None
+        """
+
+        def is_single_line_selection(cursor: QTextCursor) -> bool:
+            """
+            Check if current selection is in a single line or spans multiple lines
+
+            :param cursor: current text cursor
+            :type cursor: QTextCursor
+            :return: True if current selection is in a single line,
+                False if the selection spans multiple lines
+            :rtype: bool
+            """
+            document: QTextDocument = self.document()
+            selection_start: int = text_cursor.selectionStart()
+            selection_end: int = text_cursor.selectionEnd()
+            return document.findBlock(selection_start) == document.findBlock(selection_end)
+
+        # text cursor
+        text_cursor: QTextCursor = self.textCursor()
+
+        # check if there is a
+        if text_cursor.hasSelection() and not is_single_line_selection(text_cursor):
+            self.toggle_block_comment(text_cursor)
+        else:
+            self.toggle_line_comment(text_cursor)
+
+    def toggle_line_comment(self, text_cursor: QTextCursor) -> None:
+        """
+        Toggle comment for the line where text cursor currently is. If the current
+        line is a comment, comment will be removed. Otherise, a comment will be
+        inserted at the start of the line
+
+        :param text_cursor: text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+        current_line: QTextBlock = text_cursor.block()
+        line_text: str = current_line.text()
+
+        if line_text.startswith("#"):
+            self.remove_comment(text_cursor)
+        else:
+            self.comment_line(text_cursor)
+
+    def toggle_block_comment(self, text_cursor: QTextCursor) -> None:
+        """
+        Toggle comment on current selected lines. If all lines are already commented,
+        the comment is removed from all lines. Otherwise, a comment will be inserted
+        at the start of each line
+
+        :param text_cursor: current text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+
+        # enlarge selection
+        self.enlarge_selection(text_cursor)
+
+        # current selection start & end positions
+        selection_start: int = text_cursor.selectionStart()
+        selection_end: int = text_cursor.selectionEnd()
+        document: QTextDocument = self.document()
+
+        # move to the start of first selected line
+        start_block: QTextBlock = document.findBlock(selection_start)
+
+        # move to the end of last selected line
+        end_block: QTextBlock = document.findBlock(selection_end)
+
+        # check all lines are commented (selection is a comment block)
+        is_comment_block: bool = True
+        current_block: QTextBlock = QTextBlock(start_block)
+        while is_comment_block and current_block.isValid() and current_block.blockNumber() <= end_block.blockNumber():
+            is_comment_block = is_comment_block and current_block.text().startswith("#")
+            current_block = current_block.next()
+
+        # loop over blocks to add (or remove) comments
+        text_cursor.beginEditBlock()
+        text_cursor.setPosition(selection_start, QTextCursor.MoveAnchor)
+        current_block: QTextBlock = QTextBlock(start_block)
+        while current_block.isValid() and current_block.blockNumber() <= end_block.blockNumber():
+            if is_comment_block:
+                self.remove_comment(text_cursor)
+            else:
+                self.comment_line(text_cursor)
+            current_block = current_block.next()
+            text_cursor.movePosition(QTextCursor.NextBlock, QTextCursor.KeepAnchor)
+        text_cursor.endEditBlock()
 
     def auto_complete_suggestions(self, suggestion_text: str) -> None:
         """
@@ -393,7 +492,7 @@ class MindustryLogicEditor(BaseCodeEditor):
         content_rect: QRect = self.contentsRect()
 
         widget_size.setWidth(content_rect.width())
-        widget_size.setHeight(self.find_and_replace_dialog.height())
+        widget_size.setHeight(self.find_and_replace_widget.height())
 
         return widget_size
 
@@ -405,7 +504,30 @@ class MindustryLogicEditor(BaseCodeEditor):
         :rtype: None
         """
         # set find window geometry
-        self.find_and_replace_dialog.setHidden(False)
+        self.find_and_replace_widget.setHidden(False)
+
+    @pyqtSlot()
+    def highlight_current_line(self) -> None:
+        """
+        Highlight current line
+
+        :return: None
+        :rtype: None
+        """
+        extra_selections: List[QTextEdit.ExtraSelection] = list()
+
+        if self.isReadOnly():
+            return
+
+        selection: QTextEdit.ExtraSelection = QTextEdit.ExtraSelection()
+        line_color = QColor(255, 215, 0).lighter(180)  # light gold
+        selection.format.setBackground(line_color)
+        selection.format.setProperty(QTextFormat.FullWidthSelection, True)
+        selection.cursor = self.textCursor()
+        selection.cursor.clearSelection()
+        extra_selections.append(selection)
+
+        self.setExtraSelections(extra_selections)
 
     @pyqtSlot(int)
     def update_line_number_area_width(self, new_block_count: int):
@@ -530,16 +652,47 @@ class MindustryLogicEditor(BaseCodeEditor):
         """
         pass
 
+    @staticmethod
+    def comment_line(text_cursor: QTextCursor) -> None:
+        """
+        Add comment (#) to the start of current line where the cursor is
 
-# class MindustryEditor(QWidget):
-#
-#     def __init__(self, editor: MindustryLogicEditor, *args, **kwargs):
-#         super(MindustryEditor, self).__init__(*args, **kwargs)
-#         self.editor: MindustryLogicEditor = editor
+        :param text_cursor:
+        :type text_cursor:
+        :return:
+        :rtype:
+        """
+        line_text: str = text_cursor.block().text()
+        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        if line_text.startswith(" "):
+            text_cursor.insertText("#")
+        else:
+            text_cursor.insertText("# ")
+
+    @staticmethod
+    def remove_comment(text_cursor: QTextCursor) -> None:
+        """
+        Removes comment from current line
+
+        :param text_cursor: text cursor
+        :type text_cursor: QTextCursor
+        :return: None
+        :rtype: None
+        """
+        line_text: str = text_cursor.block().text()
+        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        if line_text.startswith("# "):
+            offset: int = 2
+        else:
+            offset: int = 1
+        text_cursor.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor, offset)
+        text_cursor.removeSelectedText()
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    t = MindustryLogicEditor()
-    t.show()
+    main_win = QMainWindow()
+    editor = MindustryLogicEditor()
+    main_win.setCentralWidget(editor)
+    main_win.show()
     sys.exit(app.exec_())

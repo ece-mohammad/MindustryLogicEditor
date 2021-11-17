@@ -4,7 +4,7 @@
 
 import pathlib
 import sys
-from typing import List, Optional
+from typing import Optional
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -12,23 +12,18 @@ from PyQt5.QtWidgets import *
 
 
 class BaseCodeEditor(QPlainTextEdit):
-    """Mindustry (game) logic editor
+    """
+    Basic code editor
 
     Features
-        - highlight current line
-        - current line numbering
-        - comment toggle
-        - code line numbering
-        - syntax coloring
-        - code completion
-        - code snippets
-        - linter (errors & warnings)
-        - auto-wrap
-        - dark mode
-        - tabs
-        - split view
-        - themes
-        """
+        - remove current line
+        - move current line/selection up
+        - move current line/selection down
+        - duplicate current line/selection up
+        - duplicate current line/selection down
+        - zoom in
+        - zoom out
+    """
 
     def __init__(self, *args, **kwargs):
         """
@@ -55,12 +50,6 @@ class BaseCodeEditor(QPlainTextEdit):
         # set tab to 4 spaces
         self.tab_width: int = 4
         self.setTabStopWidth(self.fontMetrics().horizontalAdvance(" ") * self.tab_width)
-
-        # add comment toggle action
-        self.comment_toggle_action: QAction = QAction(self)
-        self.comment_toggle_action.setShortcut(QKeySequence(Qt.Key_Slash | Qt.CTRL))
-        self.comment_toggle_action.triggered.connect(self.comment_toggle)
-        self.addAction(self.comment_toggle_action)
 
         # remove current line action
         self.remove_lines_action: QAction = QAction(self)
@@ -103,10 +92,6 @@ class BaseCodeEditor(QPlainTextEdit):
         self.zoom_out_action.setShortcut(QKeySequence(Qt.Key_Minus | Qt.CTRL))
         self.zoom_out_action.triggered.connect(self.zoomOut)
         self.addAction(self.zoom_out_action)
-
-        # ------------------------------- start --------------------------------
-        self.cursorPositionChanged.connect(self.highlight_current_line)
-        self.highlight_current_line()
 
     def is_modified(self) -> True:
         """
@@ -269,113 +254,6 @@ class BaseCodeEditor(QPlainTextEdit):
         )
 
         return event
-
-    def comment_toggle(self) -> None:
-        """
-        Toggle comment on current line or selected lines
-
-        :param event: key event that triggered comment toggle
-        :type event: QKeyEvent
-        :return: None
-        :rtype: None
-        """
-
-        def is_single_line_selection(cursor: QTextCursor) -> bool:
-            """
-            Check if current selection is in a single line or spans multiple lines
-
-            :param cursor: current text cursor
-            :type cursor: QTextCursor
-            :return: True if current selection is in a single line,
-                False if the selection spans multiple lines
-            :rtype: bool
-            """
-            # get current selection start & end positions
-            selection_start: int = cursor.selectionStart()
-            selection_end: int = cursor.selectionEnd()
-
-            # move to selection start
-            cursor.setPosition(selection_start, QTextCursor.MoveAnchor)
-            start_block: int = cursor.blockNumber()
-
-            # move to selection end
-            cursor.setPosition(selection_end, QTextCursor.KeepAnchor)
-            end_block: int = cursor.blockNumber()
-
-            return start_block == end_block
-
-        # text cursor
-        text_cursor: QTextCursor = self.textCursor()
-
-        # check if there is a
-        if text_cursor.hasSelection() and not is_single_line_selection(text_cursor):
-            self.toggle_block_comment(text_cursor)
-        else:
-            self.toggle_line_comment(text_cursor)
-
-    def toggle_line_comment(self, text_cursor: QTextCursor) -> None:
-        """
-        Toggle comment for the line where text cursor currently is. If the current
-        line is a comment, comment will be removed. Otherise, a comment will be
-        inserted at the start of the line
-
-        :param text_cursor: text cursor
-        :type text_cursor: QTextCursor
-        :return: None
-        :rtype: None
-        """
-        current_line: QTextBlock = text_cursor.block()
-        line_text: str = current_line.text()
-
-        if line_text.startswith("#"):
-            self.remove_comment(text_cursor)
-        else:
-            self.comment_line(text_cursor)
-
-    def toggle_block_comment(self, text_cursor: QTextCursor) -> None:
-        """
-        Toggle comment on current selected lines. If all lines are already commented,
-        the comment is removed from all lines. Otherwise, a comment will be inserted
-        at the start of each line
-
-        :param text_cursor: current text cursor
-        :type text_cursor: QTextCursor
-        :return: None
-        :rtype: None
-        """
-
-        # current selection start & end positions
-        select_start: int = text_cursor.selectionStart()
-        select_end: int = text_cursor.selectionEnd()
-
-        # move to the end of last selected line
-        text_cursor.setPosition(select_end, QTextCursor.MoveAnchor)
-        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.MoveAnchor)
-        end_block: QTextBlock = text_cursor.block()
-
-        # move to the start of first selected line
-        text_cursor.setPosition(select_start, QTextCursor.KeepAnchor)
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.KeepAnchor)
-        start_block: QTextBlock = text_cursor.block()
-
-        # check all lines are commented (selection is a comment block)
-        is_comment_block: bool = True
-        current_block: QTextBlock = QTextBlock(start_block)
-        while is_comment_block is True and current_block.isValid() and current_block.blockNumber() <= end_block.blockNumber():
-            is_comment_block = is_comment_block and current_block.text().startswith("#")
-            current_block = current_block.next()
-
-        # loop over blocks to add (or remove) comments
-        text_cursor.beginEditBlock()
-        current_block: QTextBlock = QTextBlock(start_block)
-        while current_block.isValid() and current_block.blockNumber() <= end_block.blockNumber():
-            if is_comment_block:
-                self.remove_comment(text_cursor)
-            else:
-                self.comment_line(text_cursor)
-            current_block = current_block.next()
-            text_cursor.movePosition(QTextCursor.NextBlock, QTextCursor.KeepAnchor)
-        text_cursor.endEditBlock()
 
     def remove_lines(self) -> None:
         """
@@ -687,65 +565,6 @@ class BaseCodeEditor(QPlainTextEdit):
         font_size = self.font.pointSize()
         self.font.setPointSize(font_size - 1)
         self.setFont(self.font)
-
-    @pyqtSlot()
-    def highlight_current_line(self) -> None:
-        """
-        Highlight current line
-
-        :return: None
-        :rtype: None
-        """
-        extra_selections: List[QTextEdit.ExtraSelection] = list()
-
-        if self.isReadOnly():
-            return
-
-        selection: QTextEdit.ExtraSelection = QTextEdit.ExtraSelection()
-        line_color = QColor(255, 215, 0).lighter(180)  # light gold
-        selection.format.setBackground(line_color)
-        selection.format.setProperty(QTextFormat.FullWidthSelection, True)
-        selection.cursor = self.textCursor()
-        selection.cursor.clearSelection()
-        extra_selections.append(selection)
-
-        self.setExtraSelections(extra_selections)
-
-    @staticmethod
-    def comment_line(text_cursor: QTextCursor) -> None:
-        """
-        Add comment (#) to the start of current line where the cursor is
-
-        :param text_cursor:
-        :type text_cursor:
-        :return:
-        :rtype:
-        """
-        line_text: str = text_cursor.block().text()
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
-        if line_text.startswith(" "):
-            text_cursor.insertText("#")
-        else:
-            text_cursor.insertText("# ")
-
-    @staticmethod
-    def remove_comment(text_cursor: QTextCursor) -> None:
-        """
-        Removes comment from current line
-
-        :param text_cursor: text cursor
-        :type text_cursor: QTextCursor
-        :return: None
-        :rtype: None
-        """
-        line_text: str = text_cursor.block().text()
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
-        if line_text.startswith("# "):
-            offset: int = 2
-        else:
-            offset: int = 1
-        text_cursor.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor, offset)
-        text_cursor.removeSelectedText()
 
     @staticmethod
     def enlarge_selection(text_cursor: QTextCursor) -> int:
