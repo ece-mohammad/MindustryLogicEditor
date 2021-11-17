@@ -11,7 +11,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-from editor import MindustryLogicEditor
+from mindustry_editor import MindustryLogicEditor
 
 
 class MainWindow(QMainWindow):
@@ -21,6 +21,12 @@ class MainWindow(QMainWindow):
         """Initialize Mindustry editor instance"""
 
         super(MainWindow, self).__init__(*args, **kwargs)
+
+        # auo save interval
+        self.auto_save_interval: int = 60 * 1000
+
+        # auto save timer (id: 1)
+        self.startTimer(self.auto_save_interval, Qt.VeryCoarseTimer)
 
         self.logger: log.Logger = log.getLogger(self.__class__.__name__)
 
@@ -450,6 +456,21 @@ class MainWindow(QMainWindow):
         self.logger.debug(f"{caller}: Closing the editor")
 
         super(MainWindow, self).closeEvent(event)
+
+    def timerEvent(self, event: QTimerEvent):
+        """
+        Handle timer event
+
+        :param event: Timer event
+        :type event: QTimerEvent
+        :return: None
+        :rtype: None
+        """
+        super(MainWindow, self).timerEvent(event)
+        current_editor: MindustryLogicEditor = self.get_current_editor()
+        current_editor.auto_save()
+        self.update_title()
+        self.logger.debug(f"Timer event: auto save")
 
     @pyqtSlot(int)
     def close_tab(self, tab_index: int) -> None:

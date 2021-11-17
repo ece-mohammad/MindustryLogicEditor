@@ -1,0 +1,545 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+import math
+import sys
+from typing import Optional, Union
+
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+
+from base_editor import BaseCodeEditor
+from completer import MindustryLogicCompleter
+from highlighter import MindustryLogicSyntaxHighlighter
+from syntax_file_parser import SyntaxFileParser
+from find_replace_widget import FindAndReplaceWidget, SearchFlags
+
+
+class LineNumberArea(QWidget):
+    """Mindustry Logic Editor line number area"""
+
+    def __init__(self, editor, *args, **kwarg):
+        super(LineNumberArea, self).__init__(*args, **kwarg)
+        self.editor: Union[QTextEdit, MindustryLogicEditor] = editor
+
+    def sizeHint(self) -> QSize:
+        return QSize(self.editor.line_number_area_width(), 0)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        self.editor.line_number_area_paint_event(event)
+
+
+class CodeLineNumber(QTextBlockUserData):
+
+    def __init__(self, number: Optional[int] = None, is_code: bool = False):
+        super(CodeLineNumber, self).__init__()
+        self.number: Optional[int] = number
+        self.is_code: bool = is_code
+
+    def __repr__(self):
+        return f"{self.number=} {self.is_code=}"
+
+
+class MindustryLogicEditor(BaseCodeEditor):
+    """Mindustry (game) logic editor
+
+    Features
+        - highlight current line
+        - current line numbering
+        - comment toggle
+        - code line numbering
+        - syntax coloring
+        - code completion
+        - code snippets
+        - linter (errors & warnings)
+        - auto-wrap
+        - dark mode
+        - tabs
+        - split view
+        - themes
+        """
+
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize mindustry logic editor instance
+
+        :param args:
+        :type args:
+        :param kwargs:
+        :type kwargs:
+        """
+        super(MindustryLogicEditor, self).__init__(*args, **kwargs)
+
+        # ------------------------- Editor components --------------------------
+
+        # line number area
+        self.line_number_area: LineNumberArea = LineNumberArea(editor=self, parent=self)
+        self.line_number_area.setFont(QFont("Consolas", 14, QFont.ExtraLight))
+
+        # find and replace widget
+        self.find_and_replace_dialog: FindAndReplaceWidget = FindAndReplaceWidget(editor=self, parent=self)
+
+        # text highlighter
+        self.highlighter: MindustryLogicSyntaxHighlighter = MindustryLogicSyntaxHighlighter(self.document())
+
+        # auto completer widget
+        self.keywords = SyntaxFileParser("config/syntax.json").get_keywords()
+        self.completer: Optional[MindustryLogicCompleter] = MindustryLogicCompleter(self.keywords)
+        self.completer.setWidget(self)
+        self.completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.completer.setCaseSensitivity(Qt.CaseSensitive)
+        self.completer.activated.connect(self.insert_completion)
+
+        # ------------------------------ Actions -------------------------------
+
+        # add text completer action
+        self.completer_action: QAction = QAction(self)
+        self.completer_action.setShortcut(QKeySequence(Qt.Key_Space | Qt.CTRL))
+        self.completer_action.triggered.connect(self.auto_complete_action)
+        self.addAction(self.completer_action)
+
+        # find and replace action
+        self.find_and_replace_action: QAction = QAction(self)
+        self.find_and_replace_action.setShortcut(QKeySequence(Qt.Key_R | Qt.CTRL))
+        self.find_and_replace_action.triggered.connect(self.pop_find_and_replace)
+        self.addAction(self.find_and_replace_action)
+
+        # -------------------------- slots & signals ---------------------------
+        self.blockCountChanged.connect(self.update_line_number_area_width)
+        self.updateRequest.connect(self.update_line_number_area)
+
+        # ------------------------------- start --------------------------------
+        self.update_line_number_area_width(0)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """
+        resize editor instance
+
+        :param event: resize event
+        :type event: QResizeEvent
+        :return: None
+        :rtype: None
+        """
+        super(MindustryLogicEditor, self).resizeEvent(event)
+        rect: QRect = self.contentsRect()
+        line_number_area_width: int = self.line_number_area_width()
+        find_and_replace_widget_size: QSize = self.find_and_replace_size()
+
+        # set line number area geometry
+        self.line_number_area.setGeometry(
+            QRect(
+                rect.left(),
+                rect.top(),
+                line_number_area_width,
+                rect.height()
+            )
+        )
+
+        # set find dialog geometry
+        self.find_and_replace_dialog.setGeometry(
+            QRect(
+                rect.left() + line_number_area_width,
+                rect.bottom() - find_and_replace_widget_size.height(),
+                find_and_replace_widget_size.width(),
+                find_and_replace_widget_size.height()
+            )
+        )
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """
+        Handle key press events within editor
+        1. replace tabs with at most 4 spaces till the nearest tab stop
+        2. pop up auto complete suggestions when CTRL+SPACE are pressed
+        3. comment current code line when CTRL+/ are pressed
+        4. remove current code line when CTRL+D are pressed
+        5. duplicate current code line down when ALT+CTRL+DOWN_KEY are pressed
+        6. duplicate current code line up when ALT+CTRL+UP_KEY are pressed
+        7. move current code line up when CTRL+UP_KEY are pressed
+        8. move current code line down when CTRL+DOWN_KEY are pressed
+
+        :param event: pressed key event
+        :type event: QKeyEvent
+        :return: None
+        :rtype: None
+        """
+
+        event_modifiers = event.modifiers()
+        no_modifiers = event_modifiers == Qt.NoModifier
+        event_key = event.key()
+
+        # The following keys are forwarded by the completer to the widget
+        if self.completer.popup().isVisible() and event_key in (Qt.Key_Enter, Qt.Key_Return, Qt.Key_Tab, Qt.Key_Backtab,
+                                                                Qt.Key_Escape):
+            return event.ignore()  # let the completer do default behavior
+
+        # replace tabs ith spaces
+        if no_modifiers:
+            if event_key == Qt.Key_Tab:
+                event = self.replace_tab_event(event)
+
+        # # comment toggle
+        # elif editor_utils.test_modifiers(event_modifiers, Qt.ControlModifier):
+        #     if event_key == Qt.Key_Slash:
+        #         self.comment_toggle(event)
+
+        super(MindustryLogicEditor, self).keyPressEvent(event)
+
+        if event_key in (Qt.Key_Space, Qt.Key_Tab, Qt.Key_Return):
+            text_cursor: QTextCursor = self.textCursor()
+            text_cursor.movePosition(QTextCursor.PreviousWord, QTextCursor.KeepAnchor)
+            text_cursor.select(QTextCursor.WordUnderCursor)
+            text: str = text_cursor.selectedText()
+            if text.isalnum():
+                self.add_word_to_keyword(text)
+
+        # auto complete suggestions
+        self.auto_complete_suggestions(event.text().strip())
+
+    def auto_complete_suggestions(self, suggestion_text: str) -> None:
+        """
+        Show and update auto complete suggestions
+
+        :param suggestion_text: text to show suggestions for
+        :type suggestion_text: str
+        :return: None
+        :rtype: None
+        """
+
+        completer_popup = self.completer.popup()
+
+        # get prefix under the cursor
+        completion_prefix: str = self.text_under_cursor()
+
+        if len(completion_prefix) == 0 or len(suggestion_text) == 0:
+            return completer_popup.hide()
+
+        if completion_prefix == self.completer.currentCompletion():
+            return completer_popup.hide()
+
+        if completion_prefix != self.completer.completionPrefix():
+            self.completer.setCompletionPrefix(completion_prefix)
+            self.completer.popup().setCurrentIndex(
+                self.completer.completionModel().index(0, 0)
+            )
+
+        cursor_rect: QRect = self.cursorRect()
+        rect_offset: int = completer_popup.sizeHintForColumn(0) + completer_popup.verticalScrollBar().sizeHint().width()
+        cursor_rect.setX(cursor_rect.x() + self.line_number_area_width())
+        cursor_rect.setWidth(rect_offset + self.line_number_area_width())
+        self.completer.complete(cursor_rect)
+
+    def auto_complete_action(self) -> None:
+        """
+        Pop up auto complete suggestion for the current text under the cursor
+
+        :return: None
+        :rtype: None
+        """
+        suggestion_text: str = self.text_under_cursor().strip()
+        self.auto_complete_suggestions(suggestion_text)
+
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        """
+
+        :param event:
+        :type event: QFocusEvent
+        :return: None
+        :rtype: None
+        """
+        if self.completer is not None:
+            self.completer.setWidget(self)
+        super(MindustryLogicEditor, self).focusInEvent(event)
+
+    def line_number_area_width(self) -> int:
+        """
+        calculate the width of the LineNumberArea widget
+
+        :return:
+        :rtype:
+        """
+        line_count = max(1, self.blockCount())
+        width_in_digits = max(math.floor(math.log10(line_count)) + 2, 4)
+        width_in_pixels = 3 + self.fontMetrics().horizontalAdvance("9") * width_in_digits
+        return width_in_pixels * 2
+
+    def line_number_area_paint_event(self, event: QPaintEvent) -> None:
+        """
+        paint line number area
+
+        :param event: paint event
+        :type event: QPaintEvent
+        :return: None
+        :rtype: None
+        """
+        # color background
+        painter: QPainter = QPainter(self.line_number_area)
+
+        code_line_number_area_offset: int = math.floor(self.line_number_area.width() / 2)
+
+        # paint line number area background
+        line_number_rect = event.rect()
+        line_number_rect.setX(0)
+        line_number_rect.setWidth(code_line_number_area_offset)
+        painter.fillRect(line_number_rect, QColor(200, 200, 200))  # light gray
+
+        # paint code line number area background
+        code_line_number_rect = event.rect()
+        code_line_number_rect.setX(code_line_number_area_offset)
+        code_line_number_rect.setWidth(code_line_number_area_offset)
+        painter.fillRect(code_line_number_rect, QColor(200, 200, 200).lighter(120))  # light gray
+
+        # write line number and code line number
+        text_block: QTextBlock = self.firstVisibleBlock()
+        block_number: int = text_block.blockNumber()
+        top: int = round(self.blockBoundingGeometry(text_block).translated(self.contentOffset()).top())
+        bottom: int = top + round(self.blockBoundingRect(text_block).height())
+
+        while text_block.isValid() and top <= event.rect().bottom():
+            if text_block.isVisible() and bottom >= event.rect().top():
+                # line number
+                number: str = str(block_number + 1)
+                font: QFont = self.line_number_area.font()
+                font.setPointSize(self.font.pointSize())
+                painter.setFont(font)
+                painter.setPen(Qt.black)
+                painter.drawText(
+                    0,
+                    top,
+                    self.line_number_area.width(),
+                    self.fontMetrics().height(),
+                    Qt.AlignLeft,
+                    number
+                )
+
+                # code line number
+                block_data: CodeLineNumber = text_block.userData()
+
+                if block_data is None:
+                    break
+
+                painter.setPen(Qt.darkCyan)
+                painter.drawText(
+                    code_line_number_area_offset,
+                    top,
+                    self.line_number_area.width(),
+                    self.fontMetrics().height(),
+                    Qt.AlignLeft,
+                    str(block_data.number) if (block_data.number >= 0 and block_data.is_code) else ""
+                )
+
+            text_block = text_block.next()
+            top = bottom
+            bottom = top + round(self.blockBoundingRect(text_block).height())
+            block_number += 1
+
+    def text_under_cursor(self) -> str:
+        """
+        Get current text under cursor
+
+        :return: string under cursor
+        :rtype: string
+        """
+        text_cursor: QTextCursor = self.textCursor()
+        text_cursor.select(QTextCursor.WordUnderCursor)
+        return text_cursor.selectedText()
+
+    def add_word_to_keyword(self, word: str) -> None:
+        """
+        Add a word to word list
+
+        :param word: a word (at least 4 characters in length)
+        :type word: str
+        :return: None
+        :rtype: None
+        """
+
+        word = word.strip()
+        if len(word) < 4:
+            return
+        keywords = set(self.keywords)
+        keywords.add(word)
+        keywords = list(keywords)
+        self.keywords = keywords
+        self.completer.update_model(keywords)
+
+    def insertFromMimeData(self, source: QMimeData):
+        """
+
+        :param source:
+        :type source:
+        :return:
+        :rtype:
+        """
+
+        super(MindustryLogicEditor, self).insertFromMimeData(source)
+
+        if source.hasText():
+            for line in source.text().splitlines():
+                for word in line.split():
+                    if word.isalnum():
+                        self.add_word_to_keyword(word)
+
+    def find_and_replace_size(self) -> QSize:
+        """
+        Get find and replace widget size
+
+        :return: find and replace widget size (width, height)
+        :rtype: QSize
+        """
+        widget_size: QSize = QSize()
+
+        content_rect: QRect = self.contentsRect()
+
+        widget_size.setWidth(content_rect.width())
+        widget_size.setHeight(self.find_and_replace_dialog.height())
+
+        return widget_size
+
+    def pop_find_and_replace(self) -> None:
+        """
+        Pop up find and replace widget
+
+        :return: None
+        :rtype: None
+        """
+        # set find window geometry
+        self.find_and_replace_dialog.setHidden(False)
+
+    @pyqtSlot(int)
+    def update_line_number_area_width(self, new_block_count: int):
+        """
+        Update editor's viewport margins to show line number area
+
+        :param new_block_count: number of lines
+        :type new_block_count: int
+        :return: None
+        :rtype: None
+        """
+        # update text editor's view port right margin
+        right_margin = self.line_number_area_width()
+        self.setViewportMargins(
+            right_margin,
+            0,
+            0,
+            0
+        )
+        # get first visible text block
+        text_block: QTextBlock = self.firstVisibleBlock()
+        block_bottom: int = self.blockBoundingGeometry(text_block).translated(self.contentOffset()).bottom()
+
+        # iterate over text blocks
+        while text_block.isValid() and block_bottom <= self.geometry().bottom():
+
+            prev_block: QTextBlock = text_block.previous()  # prev block
+            prev_block_data: CodeLineNumber = prev_block.userData()  # prev block data
+
+            current_block_text: str = text_block.text().strip()  # current block text
+            is_code: bool = len(current_block_text) > 0 and not current_block_text.startswith("#")
+            current_block_data = CodeLineNumber(is_code=is_code)  # current block data
+
+            if is_code:
+                if prev_block.isValid():
+                    current_block_data.number = prev_block_data.number + 1
+                else:
+                    current_block_data.number = 0
+
+            else:
+                if prev_block.isValid():
+                    current_block_data.number = prev_block_data.number
+                else:
+                    current_block_data.number = -1
+
+            text_block.setUserData(current_block_data)
+            text_block = text_block.next()
+
+    @pyqtSlot(QRect, int)
+    def update_line_number_area(self, rect: QRect, dy: int) -> None:
+        """
+        Update editor's viewport margins after scrolling
+
+        :param rect: new visible area of editor after scrolling
+        :type rect: QRect
+        :param dy: change in Y co-ordinates after scrolling
+        :type dy: int
+        :return: None
+        :rtype: None
+        """
+        if dy:
+            self.line_number_area.scroll(0, dy)
+        else:
+            self.line_number_area.update(
+                0,
+                rect.y(),
+                self.line_number_area.width(),
+                rect.height()
+            )
+
+        if rect.contains(self.viewport().rect()):
+            self.update_line_number_area_width(0)
+
+    @pyqtSlot(str)
+    def insert_completion(self, completion: str) -> None:
+        """
+        Insert selected completion at the current text cursor position
+
+        :param completion: selected completion
+        :type completion: str
+        :return: None
+        :rtype: None
+        """
+
+        prefix = self.completer.completionPrefix()
+
+        if completion == prefix:
+            return
+
+        text_cursor: QTextCursor = self.textCursor()
+        text_cursor.select(QTextCursor.WordUnderCursor)
+        text_cursor.insertText(completion)
+        self.setTextCursor(text_cursor)
+
+    @pyqtSlot(str, SearchFlags)
+    def editor_find_string(self, search_expr: str, search_flags: SearchFlags) -> None:
+        """
+        Search open document for a given string
+
+        :param search_expr:
+        :type search_expr:
+        :param search_flags:
+        :type search_flags:
+        :return:
+        :rtype:
+        """
+        pass
+
+    @pyqtSlot(str, str, SearchFlags)
+    def editor_replace_string(self, search_expr: str, replace_expr: str, search_flags: SearchFlags) -> None:
+        """
+        Replace a string with a given replacement
+
+        :param search_expr:
+        :type search_expr:
+        :param replace_expr:
+        :type replace_expr:
+        :param search_flags:
+        :type search_flags:
+        :return:
+        :rtype:
+        """
+        pass
+
+
+# class MindustryEditor(QWidget):
+#
+#     def __init__(self, editor: MindustryLogicEditor, *args, **kwargs):
+#         super(MindustryEditor, self).__init__(*args, **kwargs)
+#         self.editor: MindustryLogicEditor = editor
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    t = MindustryLogicEditor()
+    t.show()
+    sys.exit(app.exec_())
