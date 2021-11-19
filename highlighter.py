@@ -108,7 +108,7 @@ class MindustryLogicSyntaxHighlighter(QSyntaxHighlighter):
 
         self.highlighting_rules.append(
             MindustryLogicSyntaxHighlighter.HighlightingRule(
-                pattern=QRegularExpression("\\B@\\w+\\b"),
+                pattern=QRegularExpression("\\B@[a-zA-Z][a-zA-Z0-9\\-]*\\b"),
                 rule_format=special_variable_format
             )
         )

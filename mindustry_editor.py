@@ -72,9 +72,6 @@ class MindustryLogicEditor(BaseCodeEditor):
         self.line_number_area: LineNumberArea = LineNumberArea(editor=self, parent=self)
         self.line_number_area.setFont(QFont("Consolas", 14, QFont.ExtraLight))
 
-        # find and replace widget
-        self.find_and_replace_widget: FindAndReplaceWidget = FindAndReplaceWidget(editor=self, parent=self)
-
         # text highlighter
         self.highlighter: MindustryLogicSyntaxHighlighter = MindustryLogicSyntaxHighlighter(self.document())
 
@@ -100,12 +97,6 @@ class MindustryLogicEditor(BaseCodeEditor):
         self.completer_action.triggered.connect(self.auto_complete_action)
         self.addAction(self.completer_action)
 
-        # find and replace action
-        self.find_and_replace_action: QAction = QAction(self)
-        self.find_and_replace_action.setShortcut(QKeySequence(Qt.Key_R | Qt.CTRL))
-        self.find_and_replace_action.triggered.connect(self.pop_find_and_replace)
-        self.addAction(self.find_and_replace_action)
-
         # -------------------------- slots & signals ---------------------------
         self.cursorPositionChanged.connect(self.highlight_current_line)
         self.blockCountChanged.connect(self.update_line_number_area_width)
@@ -127,7 +118,7 @@ class MindustryLogicEditor(BaseCodeEditor):
         super(MindustryLogicEditor, self).resizeEvent(event)
         rect: QRect = self.contentsRect()
         line_number_area_width: int = self.line_number_area_width()
-        find_and_replace_widget_size: QSize = self.find_and_replace_size()
+        # find_and_replace_widget_size: QSize = self.find_and_replace_widget_size()
 
         # set line number area geometry
         self.line_number_area.setGeometry(
@@ -139,17 +130,18 @@ class MindustryLogicEditor(BaseCodeEditor):
             )
         )
 
-        # set find dialog geometry
-        self.find_and_replace_widget.setGeometry(
-            QRect(
-                rect.left() + line_number_area_width,
-                rect.bottom() - find_and_replace_widget_size.height(),
-                find_and_replace_widget_size.width(),
-                find_and_replace_widget_size.height()
-            )
-        )
+        # # set find dialog geometry
+        # self.find_and_replace_widget.setGeometry(
+        #     QRect(
+        #         rect.left(),
+        #         # rect.left() + line_number_area_width,
+        #         rect.bottom() - find_and_replace_widget_size.height(),
+        #         find_and_replace_widget_size.width(),
+        #         find_and_replace_widget_size.height()
+        #     )
+        # )
 
-    def keyPressEvent(self, event: QKeyEvent):
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         """
         Handle key press events within editor
         1. replace tabs with at most 4 spaces till the nearest tab stop
@@ -463,7 +455,7 @@ class MindustryLogicEditor(BaseCodeEditor):
         self.keywords = keywords
         self.completer.update_model(keywords)
 
-    def insertFromMimeData(self, source: QMimeData):
+    def insertFromMimeData(self, source: QMimeData) -> None:
         """
 
         :param source:
@@ -480,31 +472,173 @@ class MindustryLogicEditor(BaseCodeEditor):
                     if word.isalnum():
                         self.add_word_to_keyword(word)
 
-    def find_and_replace_size(self) -> QSize:
+    def hide_find_and_replace_widget(self) -> None:
         """
-        Get find and replace widget size
-
-        :return: find and replace widget size (width, height)
-        :rtype: QSize
-        """
-        widget_size: QSize = QSize()
-
-        content_rect: QRect = self.contentsRect()
-
-        widget_size.setWidth(content_rect.width())
-        widget_size.setHeight(self.find_and_replace_widget.height())
-
-        return widget_size
-
-    def pop_find_and_replace(self) -> None:
-        """
-        Pop up find and replace widget
+        Hide find and replce widget
 
         :return: None
         :rtype: None
         """
-        # set find window geometry
-        self.find_and_replace_widget.setHidden(False)
+        viewport_margins: QMargins = self.viewportMargins()
+        viewport_margins.setBottom(0)
+        self.setViewportMargins(viewport_margins)
+
+    def _find_string(self, search_expr: str, search_flags: SearchFlags) -> bool:
+        """
+        A helper function to find a string within the editor's text starting from the cursor's current position
+
+        :param search_expr: search expression to find
+        :type search_expr: str
+        :param search_flags: search options/flags
+        :type search_flags: SearchFlags
+        :return: True if search expression was found, False otherwise
+        :rtype: bool
+        """
+        search_options: QTextDocument.FindFlag = 0  # QTextDocument.FindBackward
+
+        if search_flags & SearchFlags.Regex:
+
+            if search_flags & SearchFlags.CaseSensitive:
+                regex_expr: QRegExp = QRegExp(search_expr, Qt.CaseSensitive)
+            else:
+                regex_expr: QRegExp = QRegExp(search_expr)
+
+            if search_flags & SearchFlags.WholeWord:
+                search_options |= QTextDocument.FindWholeWords
+
+            if search_options == 0:
+                result = self.find(regex_expr)
+            else:
+                result = self.find(regex_expr, search_options)
+
+        else:
+            if search_flags & SearchFlags.CaseSensitive:
+                search_options |= QTextDocument.FindCaseSensitively
+
+            if search_flags & SearchFlags.WholeWord:
+                search_options |= QTextDocument.FindWholeWords
+
+            if search_options == 0:
+                result: bool = self.find(search_expr)
+            else:
+                result: bool = self.find(search_expr, search_options)
+
+        return result
+
+    def find_string(self, search_expr: str, search_flags: SearchFlags) -> int:
+        """
+        Find a string in the whole document
+
+        :param search_expr: search expression
+        :type search_expr: str
+        :param search_flags: search flags
+        :type search_flags: SearchFlags
+        :return: 1 if search expression was found, 0 otherwise
+        :rtype: int
+        """
+        text_cursor: QTextCursor = self.textCursor()  # current text cursor
+        og_position: int = text_cursor.position()  # current text cursor's position
+
+        # find search expr starting from current cursor position
+        found: bool = self._find_string(search_expr, search_flags)
+        if found:
+            return int(found)
+
+        # go to the start of the document and search again (wrap around)
+        text_cursor.movePosition(QTextCursor.Start, QTextCursor.MoveAnchor)
+        self.setTextCursor(text_cursor)
+
+        found = self._find_string(search_expr, search_flags)
+        if found:
+            return int(found)
+
+        # set cursor to its original position
+        text_cursor.setPosition(og_position, QTextCursor.MoveAnchor)
+        self.setTextCursor(text_cursor)
+        return int(found)
+
+    def find_all(self, search_expr: str, search_flags: SearchFlags) -> int:
+        """
+        Find all occurrences of a string
+
+        :param search_expr: search expression
+        :type search_expr: str
+        :param search_flags: search flags
+        :type search_flags: SearchFlags
+        :return: Number of search expression occurrences
+        :rtype: int
+        """
+        text_cursor: QTextCursor = self.textCursor()  # current text cursor
+        og_position: int = text_cursor.position()  # text cursor position
+        extra_selections: List[QTextEdit.ExtraSelection] = self.extraSelections()
+
+        # go to the start of the document
+        text_cursor.movePosition(QTextCursor.Start, QTextCursor.MoveAnchor)
+        self.setTextCursor(text_cursor)
+
+        # find all occurrences of search_exp
+        result_count: int = 0
+        while self._find_string(search_expr, search_flags):
+            result_count += 1
+            selection: QTextEdit.ExtraSelection = QTextEdit.ExtraSelection()
+            selection.format.setBackground(QColor(160, 255, 160).lighter(110))  # light green
+            selection.cursor = self.textCursor()
+            extra_selections.append(selection)
+
+        # return text cursor to its original position
+        text_cursor.setPosition(og_position, QTextCursor.MoveAnchor)
+        self.setTextCursor(text_cursor)
+
+        # set extra selections
+        self.setExtraSelections(extra_selections)
+        return result_count
+
+    def replace_string(self, search_expr: str, replace_expr: str, search_flags: SearchFlags) -> int:
+        """
+        Replace search expression with replace expression
+
+        :param search_expr: search expression
+        :type search_expr: str
+        :param replace_expr:
+        :type replace_expr: str
+        :param search_flags:
+        :type search_flags: SearchFlags
+        :return: 1 if search expression was found, 0 otherwise
+        :rtype: int
+        """
+        # find search expression
+        found: bool = self.find_string(search_expr, search_flags)
+        if found:
+            text_cursor: QTextCursor = self.textCursor()  # text cursor
+            text_cursor.insertText(replace_expr)    # replace search expression
+
+        return int(found)
+
+    def replace_all(self, search_expr: str, replace_expr: str, search_flags: SearchFlags) -> int:
+        """
+        Replace all occurrences of search expression with replace expression
+
+        :param search_expr: search expression
+        :type search_expr: str
+        :param replace_expr:
+        :type replace_expr: str
+        :param search_flags:
+        :type search_flags: SearchFlags
+        :return: Number of search expression found and replaces
+        :rtype: int
+        """
+        text_cursor: QTextCursor = self.textCursor()  # text cursor
+
+        text_cursor.beginEditBlock()
+        replace_count: int = 0
+        while self.find_string(search_expr, search_flags):
+            replace_count += 1
+            text_cursor: QTextCursor = self.textCursor()  # text cursor
+            text_cursor.insertText(replace_expr)
+
+        text_cursor.endEditBlock()
+        self.setTextCursor(text_cursor)
+        return replace_count
 
     @pyqtSlot()
     def highlight_current_line(self) -> None:
@@ -530,7 +664,7 @@ class MindustryLogicEditor(BaseCodeEditor):
         self.setExtraSelections(extra_selections)
 
     @pyqtSlot(int)
-    def update_line_number_area_width(self, new_block_count: int):
+    def update_line_number_area_width(self, new_block_count: int) -> None:
         """
         Update editor's viewport margins to show line number area
 
@@ -540,13 +674,11 @@ class MindustryLogicEditor(BaseCodeEditor):
         :rtype: None
         """
         # update text editor's view port right margin
-        right_margin = self.line_number_area_width()
-        self.setViewportMargins(
-            right_margin,
-            0,
-            0,
-            0
-        )
+        left_margin = self.line_number_area_width()
+        viewport_margins: QMargins = self.viewportMargins()
+        viewport_margins.setLeft(left_margin)
+        self.setViewportMargins(viewport_margins)
+
         # get first visible text block
         text_block: QTextBlock = self.firstVisibleBlock()
         block_bottom: int = self.blockBoundingGeometry(text_block).translated(self.contentOffset()).bottom()
@@ -622,36 +754,6 @@ class MindustryLogicEditor(BaseCodeEditor):
         text_cursor.insertText(completion)
         self.setTextCursor(text_cursor)
 
-    @pyqtSlot(str, SearchFlags)
-    def editor_find_string(self, search_expr: str, search_flags: SearchFlags) -> None:
-        """
-        Search open document for a given string
-
-        :param search_expr:
-        :type search_expr:
-        :param search_flags:
-        :type search_flags:
-        :return:
-        :rtype:
-        """
-        pass
-
-    @pyqtSlot(str, str, SearchFlags)
-    def editor_replace_string(self, search_expr: str, replace_expr: str, search_flags: SearchFlags) -> None:
-        """
-        Replace a string with a given replacement
-
-        :param search_expr:
-        :type search_expr:
-        :param replace_expr:
-        :type replace_expr:
-        :param search_flags:
-        :type search_flags:
-        :return:
-        :rtype:
-        """
-        pass
-
     @staticmethod
     def comment_line(text_cursor: QTextCursor) -> None:
         """
@@ -663,7 +765,7 @@ class MindustryLogicEditor(BaseCodeEditor):
         :rtype:
         """
         line_text: str = text_cursor.block().text()
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        text_cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.MoveAnchor)
         if line_text.startswith(" "):
             text_cursor.insertText("#")
         else:
@@ -680,7 +782,7 @@ class MindustryLogicEditor(BaseCodeEditor):
         :rtype: None
         """
         line_text: str = text_cursor.block().text()
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        text_cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.MoveAnchor)
         if line_text.startswith("# "):
             offset: int = 2
         else:

@@ -40,13 +40,32 @@
 
 same icon as undo but flipped
 
-
 ### icon.ico
 
 An edited screenshot of hyper processor from Mindustry Neon Nights mod
 
-
 ### file.png
 
 <div>Icons made by <a href="https://www.flaticon.com/authors/roundicons-premium" title="Roundicons Premium">Roundicons Premium</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
+
+### search.png
+
+<div>Icons made by <a href="https://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
+
+
+### whole-word.png
+
+Created using GIMP
+
+### match-case.png
+
+Created using GIMP
+
+### regex.png
+
+Created using GIMP
+
+### close.png
+
+<div>Icons made by <a href="https://www.flaticon.com/authors/ilham-fitrotul-hayat" title="Ilham Fitrotul Hayat">Ilham Fitrotul Hayat</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
 

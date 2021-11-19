@@ -283,7 +283,7 @@ class BaseCodeEditor(QPlainTextEdit):
         if has_text:
             text_cursor.select(QTextCursor.BlockUnderCursor)
             text_cursor.removeSelectedText()
-            text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.MoveAnchor)
+            text_cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.MoveAnchor)
         else:
             text_cursor.deletePreviousChar()
 
@@ -382,9 +382,9 @@ class BaseCodeEditor(QPlainTextEdit):
         text_cursor.beginEditBlock()  # start edit group
 
         # select current line & previous line
-        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.MoveAnchor)
+        text_cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.MoveAnchor)
         text_cursor.movePosition(QTextCursor.Up, QTextCursor.KeepAnchor)
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.KeepAnchor)
+        text_cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.KeepAnchor)
 
         # insert current line then previous line text
         text_cursor.insertText(f"{current_line.text()}\n{previous_line.text()}")
@@ -433,7 +433,7 @@ class BaseCodeEditor(QPlainTextEdit):
         selection_text: str = text_cursor.selectedText()  # selected lines tex
 
         text_cursor.removeSelectedText()  # remove lines
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)  # select previous line
+        text_cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.MoveAnchor)  # select previous line
         text_cursor.movePosition(QTextCursor.Up, QTextCursor.KeepAnchor)
         text_cursor.insertText(f"{selection_text}\n{previous_line.text()}")  # insert text
 
@@ -478,9 +478,9 @@ class BaseCodeEditor(QPlainTextEdit):
         text_cursor.beginEditBlock()  # start edit group
 
         # select current line & previous line
-        text_cursor.movePosition(QTextCursor.StartOfLine, QTextCursor.MoveAnchor)
+        text_cursor.movePosition(QTextCursor.StartOfBlock, QTextCursor.MoveAnchor)
         text_cursor.movePosition(QTextCursor.Down, QTextCursor.KeepAnchor)
-        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+        text_cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
 
         # insert current line then previous line text
         text_cursor.insertText(f"{next_line.text()}\n{current_line.text()}")
@@ -528,7 +528,7 @@ class BaseCodeEditor(QPlainTextEdit):
 
         text_cursor.removeSelectedText()  # remove lines
         text_cursor.movePosition(QTextCursor.Down, QTextCursor.KeepAnchor)  # select next line
-        text_cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+        text_cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
         text_cursor.insertText(f"{next_line_text}\n{selection_text}")  # insert text
 
         # reposition cursor & restore selection
