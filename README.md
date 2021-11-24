@@ -3,7 +3,7 @@
 
 A simple code editor for [Mindustry](https://anuke.itch.io/mindustry)'s in game logic
 
-[Screenshot](raw/master/images/editor-screenshot.jpg)
+![Screenshot](raw/master/images/editor-screenshot.jpg)
 
 ## Features
 
