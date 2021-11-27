@@ -24,7 +24,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(*args, **kwargs)
 
         # auo save interval
-        self.auto_save_interval: int = 60 * 1000
+        self.auto_save_interval: int = 6000 * 1000
 
         # auto save timer (id: 1)
         self.startTimer(self.auto_save_interval, Qt.VeryCoarseTimer)
@@ -300,6 +300,10 @@ class MainWindow(QMainWindow):
         if current_editor is None:
             return
 
+        if not isinstance(current_editor, MindustryLogicEditor):
+            self.logger.error("Not instance!!")
+            return
+
         editor_path: pathlib.Path = current_editor.path
         open_file_name: str = current_editor.get_open_file_name()
 
@@ -320,22 +324,23 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(editor_title)
         self.tab_widget.setTabText(self.tab_widget.currentIndex(), open_file_name)
 
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: Updating title for {open_file_name=}")
+        self.logger.debug(f"Updating title for {open_file_name=}")
 
     def create_new_file(self) -> None:
         """new editor file"""
+        self.tab_widget.setUpdatesEnabled(False)
         self.add_editor_tab()
-        self.get_current_editor().create_new_file()
-        self.get_current_editor().setFocus()
+        editor: MindustryLogicEditor = self.get_current_editor()
+        editor.setObjectName(f"tab#{self.tab_widget.currentIndex()}")
+        editor.create_new_file()
+        editor.setFocus()
+        self.tab_widget.setUpdatesEnabled(True)
         self.update_title()
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: New file created in tab: {self.tab_widget.currentIndex()}")
+        self.logger.debug(f"New file created in tab: {self.tab_widget.currentIndex()}")
 
     def open_file(self) -> None:
         """Open an existing file"""
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: Opening a file")
+        self.logger.debug(f"Opening a file")
 
         current_editor: MindustryLogicEditor = self.get_current_editor()
 
@@ -365,29 +370,32 @@ class MainWindow(QMainWindow):
                 continue
 
             tab_editor: MindustryLogicEditor = self.tab_widget.widget(tab_index)  # editor in the tab
-            tab_file: str = tab_editor.get_open_file_name()  # file open in the tab
-            if tab_file == file_name:
+
+            # skip new files
+            if tab_editor.path is None:
+                continue
+
+            tab_file_name: str = tab_editor.get_open_file_name()  # file open in the tab
+            if tab_file_name == file_name:
                 self.logger.debug(f"file {file_name} is already open in tab: {tab_index}")
                 self.tab_widget.removeTab(tab_index)  # close tab & its editor
                 break
 
         current_editor.setFocus()  # set focus on current tab editor
         self.update_title()  # update window title
-        self.logger.debug(f"{caller}:File opened: {file_name} in tab {current_tab}")
+        self.logger.debug(f"File opened: {file_name} in tab {current_tab}")
 
     def save_file(self) -> None:
         """Save current open file"""
         self.get_current_editor().save_file()
         self.update_title()
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: File saved")
+        self.logger.debug(f"File saved")
 
     def save_file_as(self) -> None:
         """Save current file as another file"""
         self.get_current_editor().save_file_as()
         self.update_title()
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: File save as")
+        self.logger.debug(f"File save as")
 
     def add_editor_tab(self) -> None:
         """
@@ -396,8 +404,16 @@ class MainWindow(QMainWindow):
         :return: None
         :rtype: None
         """
+
+        # disable GUI updates for current editor, if it exists
+        current_editor: MindustryLogicEditor = self.get_current_editor()
+        if current_editor is not None:
+            current_editor.setUpdatesEnabled(False)
+
         # create a new editor instance
-        editor = MindustryLogicEditor()
+        editor: MindustryLogicEditor = MindustryLogicEditor()
+        editor.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.bind_editor_shortcuts(editor)
 
         # add new tab
         tab_index: int = self.tab_widget.addTab(
@@ -406,12 +422,13 @@ class MainWindow(QMainWindow):
             editor.get_open_file_name()
         )
 
-        # add editor to open editors
-        self.bind_editor_shortcuts(editor)
         self.tab_widget.setCurrentIndex(tab_index)
-        editor.setFocus()
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: Added a new editor in tab: {tab_index}")
+
+        # enable GUI updates for current editor
+        if current_editor is not None:
+            current_editor.setUpdatesEnabled(True)
+
+        self.logger.debug(f"Added a new editor in tab: {tab_index}")
 
     def get_current_editor(self) -> MindustryLogicEditor:
         """
@@ -433,8 +450,7 @@ class MainWindow(QMainWindow):
         current_editor: MindustryLogicEditor = self.get_current_editor()
         current_file_name: str = current_editor.get_open_file_name()
 
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: Closing current tab {self.tab_widget.currentIndex()}: {current_file_name}")
+        self.logger.debug(f"Closing current tab {self.tab_widget.currentIndex()}: {current_file_name}")
 
         if current_editor.is_modified():
             confirm_save: int = self.confirm_message(f"Save file {current_file_name} before closing?")
@@ -443,7 +459,7 @@ class MainWindow(QMainWindow):
             elif confirm_save == QMessageBox.Yes:
                 self.save_file()
             else:  # QMessageBox.No
-                pass  # don't save file
+                pass
 
         self.close_tab(self.tab_widget.currentIndex())
 
@@ -466,8 +482,7 @@ class MainWindow(QMainWindow):
         current_tab_index: int = self.tab_widget.currentIndex()
         new_tab_index: int = (current_tab_index + 1) % self.tab_widget.count()
         self.tab_widget.setCurrentIndex(new_tab_index)
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: User switching tabs from {current_tab_index} to {new_tab_index}")
+        self.logger.debug(f"Switching tabs from {current_tab_index} to {new_tab_index}")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         close_confirm: int = self.confirm_message(f"Any unsaved files will be discarded. Confirm closing the editor?")
@@ -478,9 +493,9 @@ class MainWindow(QMainWindow):
         for tab_index in range(self.tab_widget.count()):
             tab_editor: MindustryLogicEditor = self.tab_widget.widget(tab_index)
             tab_editor.close()
+            tab_editor.deleteLater()
 
-        caller = inspect.currentframe().f_back.f_code.co_name
-        self.logger.debug(f"{caller}: Closing the editor")
+        self.logger.debug(f"Closing the editor")
 
         super(MainWindow, self).closeEvent(event)
 
@@ -519,7 +534,8 @@ class MainWindow(QMainWindow):
         :return: None
         :rtype: None
         """
-        self.tab_widget.widget(tab_index).close()
+        editor: MindustryLogicEditor = self.tab_widget.widget(tab_index)
+        editor.close()
         self.tab_widget.removeTab(tab_index)
         if self.tab_widget.count() < 1:
             self.create_new_file()
@@ -548,7 +564,6 @@ class MainWindow(QMainWindow):
         :rtype:
         """
         editor: MindustryLogicEditor = self.get_current_editor()
-        result: int = 0
         if search_flags & SearchFlags.AllOccurrences:
             result = editor.find_all(search_expr, search_flags)
         else:
