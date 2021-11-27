@@ -328,13 +328,11 @@ class MainWindow(QMainWindow):
 
     def create_new_file(self) -> None:
         """new editor file"""
-        self.tab_widget.setUpdatesEnabled(False)
         self.add_editor_tab()
         editor: MindustryLogicEditor = self.get_current_editor()
         editor.setObjectName(f"tab#{self.tab_widget.currentIndex()}")
         editor.create_new_file()
         editor.setFocus()
-        self.tab_widget.setUpdatesEnabled(True)
         self.update_title()
         self.logger.debug(f"New file created in tab: {self.tab_widget.currentIndex()}")
 
@@ -342,12 +340,20 @@ class MainWindow(QMainWindow):
         """Open an existing file"""
         self.logger.debug(f"Opening a file")
 
+        update_enable: bool = self.tab_widget.updatesEnabled()
+        self.tab_widget.setUpdatesEnabled(False)
+
         current_editor: MindustryLogicEditor = self.get_current_editor()
 
         # check if there is an open file (not a new file)
+        new_tab: bool = False
         if current_editor.path is not None:
             self.add_editor_tab()
+            new_tab: bool = True
             current_editor: MindustryLogicEditor = self.get_current_editor()
+
+        # disable current editor GUI updates
+        current_editor.setUpdatesEnabled(False)
 
         # open file
         current_editor.open_file()
@@ -355,6 +361,8 @@ class MainWindow(QMainWindow):
         # open was canceled
         if current_editor.path is None:
             self.logger.debug(f"Open file as cancelled")
+            if new_tab:
+                self.close_current_tab()
             return
 
         # get current file name & tab index
@@ -362,8 +370,7 @@ class MainWindow(QMainWindow):
         current_tab: int = self.tab_widget.currentIndex()
 
         # check if there is a file already opened with the same name
-        open_tabs_count: int = self.tab_widget.count()
-        for tab_index in range(open_tabs_count):
+        for tab_index in range(self.tab_widget.count()):
 
             # skip current tab
             if tab_index == current_tab:
@@ -378,11 +385,19 @@ class MainWindow(QMainWindow):
             tab_file_name: str = tab_editor.get_open_file_name()  # file open in the tab
             if tab_file_name == file_name:
                 self.logger.debug(f"file {file_name} is already open in tab: {tab_index}")
-                self.tab_widget.removeTab(tab_index)  # close tab & its editor
+                self.tab_widget.setCurrentIndex(tab_index)
+                other_editor: MindustryLogicEditor = self.get_current_editor()  # get other file's editor
+                other_editor.create_new_file()
+                self.update_title()
                 break
 
+        self.tab_widget.setCurrentIndex(current_tab)
+        current_editor.setUpdatesEnabled(True)
         current_editor.setFocus()  # set focus on current tab editor
+
+        self.tab_widget.setUpdatesEnabled(update_enable)
         self.update_title()  # update window title
+
         self.logger.debug(f"File opened: {file_name} in tab {current_tab}")
 
     def save_file(self) -> None:
@@ -404,7 +419,6 @@ class MainWindow(QMainWindow):
         :return: None
         :rtype: None
         """
-
         # disable GUI updates for current editor, if it exists
         current_editor: MindustryLogicEditor = self.get_current_editor()
         if current_editor is not None:
@@ -416,18 +430,14 @@ class MainWindow(QMainWindow):
         self.bind_editor_shortcuts(editor)
 
         # add new tab
+        self.tab_widget.setUpdatesEnabled(False)
         tab_index: int = self.tab_widget.addTab(
             editor,
             QIcon(os.path.join("images", "file.png")),
             editor.get_open_file_name()
         )
-
         self.tab_widget.setCurrentIndex(tab_index)
-
-        # enable GUI updates for current editor
-        if current_editor is not None:
-            current_editor.setUpdatesEnabled(True)
-
+        self.tab_widget.setUpdatesEnabled(True)
         self.logger.debug(f"Added a new editor in tab: {tab_index}")
 
     def get_current_editor(self) -> MindustryLogicEditor:
@@ -549,6 +559,11 @@ class MainWindow(QMainWindow):
     def current_tab_changed(self, new_tab_index: int) -> None:
         """Current tab was changed"""
         if new_tab_index > -1:
+
+            for tab_index in range(self.tab_widget.count()):
+                self.tab_widget.widget(tab_index).setUpdatesEnabled(False)
+
+            self.tab_widget.widget(new_tab_index).setUpdatesEnabled(True)
             self.update_title()
 
     @pyqtSlot(str, SearchFlags)
